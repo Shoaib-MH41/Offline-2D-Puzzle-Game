@@ -165,7 +165,58 @@ class GameProvider with ChangeNotifier {
   }
 
   Future<void> _simulateRescuePhysics() async {
-     // TODO: Implement simulation
+    if (_rescueGrid.isEmpty) return;
+
+    bool changed = true;
+    while (changed && !_isLevelFailed && !_isLevelComplete) {
+      changed = false;
+      await Future.delayed(const Duration(milliseconds: 200));
+
+      // Apply Gravity from Bottom to Top
+      for (int r = _rescueGrid.length - 2; r >= 0; r--) {
+        for (int c = 0; c < _rescueGrid[r].length; c++) {
+           final item = _rescueGrid[r][c];
+           // Pin, Exit do not fall
+           if (item.type != RescueType.empty && item.type != RescueType.pin && item.type != RescueType.exit) {
+               // Check below
+               final below = _rescueGrid[r+1][c];
+
+               if (below.type == RescueType.empty) {
+                   // Move down
+                   _rescueGrid[r+1][c] = RescueItem(id: item.id, type: item.type, row: r+1, col: c);
+                   _rescueGrid[r][c] = RescueItem(id: 'empty_$r$c', type: RescueType.empty, row: r, col: c);
+                   changed = true;
+               } else if (item.type == RescueType.hero && below.type == RescueType.exit) {
+                   // Win: Hero reaches Exit
+                   _rescueGrid[r+1][c] = RescueItem(id: item.id, type: item.type, row: r+1, col: c);
+                   _rescueGrid[r][c] = RescueItem(id: 'empty_$r$c', type: RescueType.empty, row: r, col: c);
+                   _isLevelComplete = true;
+                   notifyListeners();
+                   return;
+               } else if (_isHazard(item.type) && below.type == RescueType.hero) {
+                   // Lose: Hazard falls on Hero
+                   _rescueGrid[r+1][c] = RescueItem(id: item.id, type: item.type, row: r+1, col: c); // Visual overwrite
+                   _rescueGrid[r][c] = RescueItem(id: 'empty_$r$c', type: RescueType.empty, row: r, col: c);
+                   _isLevelFailed = true;
+                   notifyListeners();
+                   return;
+               } else if (item.type == RescueType.hero && _isHazard(below.type)) {
+                   // Lose: Hero falls on Hazard
+                   _rescueGrid[r+1][c] = RescueItem(id: item.id, type: item.type, row: r+1, col: c); // Visual overwrite
+                   _rescueGrid[r][c] = RescueItem(id: 'empty_$r$c', type: RescueType.empty, row: r, col: c);
+                   _isLevelFailed = true;
+                   notifyListeners();
+                   return;
+               }
+           }
+        }
+      }
+      notifyListeners();
+    }
+  }
+
+  bool _isHazard(RescueType type) {
+    return type == RescueType.lava || type == RescueType.water || type == RescueType.enemy || type == RescueType.hazard;
   }
 
   void startNextLevel() {

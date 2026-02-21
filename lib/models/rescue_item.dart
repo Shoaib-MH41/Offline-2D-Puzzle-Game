@@ -8,6 +8,8 @@ enum RescueType {
   pin,
   empty,
   exit,
+  sand,
+  hazard,
 }
 
 class RescueItem {

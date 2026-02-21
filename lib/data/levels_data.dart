@@ -56,24 +56,25 @@ String _getMonsterName(int worldIndex, bool isBoss) {
 List<List<RescueType>> _generateRescueLayout(int level) {
   // Simple 5x5 layout depending on level roughly
   // P = Pin, H = Hero, E = Enemy, W = Water, L = Lava, X = Exit, . = Empty
+  // New: S = Stone, D = Sand, Z = Hazard
 
   if (level % 2 == 0) {
      // Variation A
      return [
-      [RescueType.empty, RescueType.hero, RescueType.empty, RescueType.water, RescueType.empty],
+      [RescueType.stone, RescueType.hero, RescueType.stone, RescueType.hazard, RescueType.stone],
+      [RescueType.pin, RescueType.sand, RescueType.pin, RescueType.pin, RescueType.pin],
+      [RescueType.empty, RescueType.empty, RescueType.sand, RescueType.empty, RescueType.empty],
       [RescueType.pin, RescueType.pin, RescueType.pin, RescueType.pin, RescueType.pin],
-      [RescueType.lava, RescueType.empty, RescueType.empty, RescueType.empty, RescueType.lava],
-      [RescueType.pin, RescueType.pin, RescueType.pin, RescueType.pin, RescueType.pin],
-      [RescueType.empty, RescueType.exit, RescueType.empty, RescueType.exit, RescueType.empty],
+      [RescueType.stone, RescueType.exit, RescueType.stone, RescueType.exit, RescueType.stone],
     ];
   } else {
     // Variation B
      return [
-      [RescueType.gold, RescueType.hero, RescueType.gold, RescueType.empty, RescueType.empty],
+      [RescueType.gold, RescueType.hero, RescueType.gold, RescueType.stone, RescueType.sand],
       [RescueType.pin, RescueType.pin, RescueType.pin, RescueType.pin, RescueType.pin],
-      [RescueType.enemy, RescueType.empty, RescueType.empty, RescueType.empty, RescueType.enemy],
+      [RescueType.enemy, RescueType.sand, RescueType.empty, RescueType.sand, RescueType.enemy],
       [RescueType.pin, RescueType.pin, RescueType.pin, RescueType.pin, RescueType.pin],
-      [RescueType.empty, RescueType.exit, RescueType.exit, RescueType.exit, RescueType.empty],
+      [RescueType.stone, RescueType.exit, RescueType.exit, RescueType.exit, RescueType.stone],
     ];
   }
 }
