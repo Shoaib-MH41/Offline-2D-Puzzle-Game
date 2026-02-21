@@ -194,10 +194,15 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
     int worldIndex = (_gameProvider.level - 1) ~/ 10;
     List<Color> bgColors;
-    if (worldIndex == 0) bgColors = [Colors.green[900]!, Colors.green[700]!];
-    else if (worldIndex == 1) bgColors = [Colors.red[900]!, Colors.orange[900]!];
-    else if (worldIndex == 2) bgColors = [Colors.purple[900]!, Colors.deepPurple[800]!];
-    else bgColors = [Colors.black, Colors.blueGrey[900]!];
+    if (worldIndex == 0) {
+      bgColors = [Colors.green[900]!, Colors.green[700]!];
+    } else if (worldIndex == 1) {
+      bgColors = [Colors.red[900]!, Colors.orange[900]!];
+    } else if (worldIndex == 2) {
+      bgColors = [Colors.purple[900]!, Colors.deepPurple[800]!];
+    } else {
+      bgColors = [Colors.black, Colors.blueGrey[900]!];
+    }
 
     return Scaffold(
         body: Container(
@@ -305,7 +310,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                                );
                              }
                              return const SizedBox.shrink();
-                           }).toList(),
+                           }),
                         ],
                       );
                     }

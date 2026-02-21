@@ -134,7 +134,7 @@ class GameProvider with ChangeNotifier {
               List<RescueItem> row = [];
               for (int c=0; c<config.rescueLayout![r].length; c++) {
                   row.add(RescueItem(
-                      id: 'rescue_${r}_${c}',
+                      id: 'rescue_${r}_$c',
                       type: config.rescueLayout![r][c],
                       row: r,
                       col: c
@@ -155,7 +155,7 @@ class GameProvider with ChangeNotifier {
       if (item.type == RescueType.pin) {
           if (_energy >= 10) {
               _energy -= 10;
-              _rescueGrid[r][c] = RescueItem(id: 'empty_pin_${r}_${c}', type: RescueType.empty, row: r, col: c);
+              _rescueGrid[r][c] = RescueItem(id: 'empty_pin_${r}_$c', type: RescueType.empty, row: r, col: c);
               notifyListeners();
               _simulateRescuePhysics();
           } else {
@@ -298,16 +298,25 @@ class GameProvider with ChangeNotifier {
     if (isSpecialInteraction) {
        validMove = true;
 
-       if (_grid[tileA.row][tileA.col].isBomb) await _triggerBomb(tileA);
-       else if (_grid[tileA.row][tileA.col].isPower) await _triggerPower(tileA);
+       if (_grid[tileA.row][tileA.col].isBomb) {
+         await _triggerBomb(tileA);
+       } else if (_grid[tileA.row][tileA.col].isPower) {
+         await _triggerPower(tileA);
+       }
 
        final t1 = _grid[newRow][newCol];
-       if (t1.isBomb) await _triggerBomb(t1);
-       else if (t1.isPower) await _triggerPower(t1);
+       if (t1.isBomb) {
+         await _triggerBomb(t1);
+       } else if (t1.isPower) {
+         await _triggerPower(t1);
+       }
 
        final t2 = _grid[row][col];
-       if (t2.isBomb) await _triggerBomb(t2);
-       else if (t2.isPower) await _triggerPower(t2);
+       if (t2.isBomb) {
+         await _triggerBomb(t2);
+       } else if (t2.isPower) {
+         await _triggerPower(t2);
+       }
 
        await _processBoard();
     } else {
@@ -372,12 +381,15 @@ class GameProvider with ChangeNotifier {
       int poisonCount = 0;
       for (var r in _grid) {
           for (var t in r) {
-              if (t.type == TileType.poison) poisonCount++;
-              else if (t.type == TileType.timedBomb) {
+              if (t.type == TileType.poison) {
+                poisonCount++;
+              } else if (t.type == TileType.timedBomb) {
                   t.turnsLeft--;
                   if (t.turnsLeft <= 0) {
                        _movesLeft -= 5;
-                       if (_movesLeft < 0) _movesLeft = 0;
+                       if (_movesLeft < 0) {
+                         _movesLeft = 0;
+                       }
                        _eventController.add(MessageEvent("Bomb Exploded! -5 Moves"));
                        _grid[t.row][t.col] = Tile(
                            id: 'exploded_${t.id}',
@@ -393,7 +405,9 @@ class GameProvider with ChangeNotifier {
       if (poisonCount > 0) {
           int penalty = poisonCount * 50;
           _score -= penalty;
-          if (_score < 0) _score = 0;
+          if (_score < 0) {
+            _score = 0;
+          }
           _eventController.add(MessageEvent("Poison Damage: -$penalty"));
       }
   }
