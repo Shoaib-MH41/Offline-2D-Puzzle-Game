@@ -26,8 +26,11 @@ void main() {
       ),
     );
 
-    // Verify AppBar title
-    expect(find.text('Score: 0'), findsOneWidget);
+    // Verify Score UI (Score label and value are separate now)
+    expect(find.text('Score'), findsOneWidget);
+    // Value '0' might appear multiple times (Score, Energy hidden, maybe somewhere else)
+    // But at least it should be there.
+    expect(find.text('0'), findsAtLeastNWidgets(1));
 
     // Verify BoardWidget
     expect(find.byType(BoardWidget), findsOneWidget);
@@ -36,14 +39,9 @@ void main() {
     await tester.pumpAndSettle();
 
     // Check for TileWidgets
-    // Since we didn't export TileWidget in a library, we import it directly.
     expect(find.byType(TileWidget), findsWidgets);
 
-    // Check number of tiles. Should be 63.
+    // Check number of tiles. Should be 63 (9*7).
     expect(find.byType(TileWidget), findsNWidgets(63));
-
-    // Icons.refresh and Icons.save were removed in redesign
-    // expect(find.byIcon(Icons.refresh), findsOneWidget);
-    // expect(find.byIcon(Icons.save), findsOneWidget);
   });
 }

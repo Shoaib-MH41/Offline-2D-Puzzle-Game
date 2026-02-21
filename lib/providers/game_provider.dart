@@ -3,6 +3,9 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../models/tile.dart';
 import '../models/monster.dart';
+import '../models/rescue_item.dart';
+import '../models/level_config.dart';
+import '../data/levels_data.dart';
 
 enum Direction { up, down, left, right }
 
@@ -28,6 +31,11 @@ class BombEvent extends GameEvent {
 
 class ShakeEvent extends GameEvent {}
 
+class MessageEvent extends GameEvent {
+  final String message;
+  MessageEvent(this.message);
+}
+
 class GameProvider with ChangeNotifier {
   static const int rows = 9;
   static const int cols = 7;
@@ -37,8 +45,14 @@ class GameProvider with ChangeNotifier {
   bool _isProcessing = false;
   int _comboCount = 0;
 
-  late Monster _monster;
+  Monster? _monster;
+  List<List<RescueItem>> _rescueGrid = [];
+  int _energy = 0;
+  bool _isLevelComplete = false;
+  bool _isLevelFailed = false;
+
   int _level = 1;
+  GameMode _mode = GameMode.battle;
 
   int _movesLeft = 0;
   int _maxMoves = 0;
@@ -50,14 +64,25 @@ class GameProvider with ChangeNotifier {
   int get score => _score;
   bool get isProcessing => _isProcessing;
   int get comboCount => _comboCount;
-  Monster get monster => _monster;
+  Monster? get monster => _monster;
+  List<List<RescueItem>> get rescueGrid => _rescueGrid;
+  int get energy => _energy;
+  bool get isLevelComplete => _isLevelComplete;
+  bool get isLevelFailed => _isLevelFailed;
   int get level => _level;
   int get movesLeft => _movesLeft;
   int get maxMoves => _maxMoves;
+  GameMode get mode => _mode;
 
   final Random _random = Random();
 
   GameProvider() {
+    _initLevel();
+    generateGrid();
+  }
+
+  void setLevel(int level) {
+    _level = level;
     _initLevel();
     generateGrid();
   }
@@ -74,30 +99,78 @@ class GameProvider with ChangeNotifier {
   }
 
   void _initLevel() {
-    bool isBoss = _level % 10 == 0;
-
-    // Moves Limit: Base 15 + level moves.
-    // Boss levels get more moves because of high HP.
-    _maxMoves = 15 + _level + (isBoss ? 10 : 0);
-    _movesLeft = _maxMoves;
-
-    // Simple scaling: +50 HP per level
-    int hp = 100 + (_level - 1) * 50;
-
-    if (isBoss) {
-      hp *= 2; // Boss has double HP
-    }
-
-    _monster = Monster(
-      name: isBoss ? "Boss Level $_level" : "Goblin Lvl $_level",
-      maxHp: hp,
-      currentHp: hp,
-      level: _level,
+    final levels = getLevels();
+    // Safety check if level > 40
+    final config = levels.firstWhere(
+        (l) => l.levelNumber == _level,
+        orElse: () => levels.last
     );
+
+    _mode = config.mode;
+    _maxMoves = config.maxMoves;
+    _movesLeft = _maxMoves;
+    _score = 0;
+    _isLevelComplete = false;
+    _isLevelFailed = false;
+
+    if (_mode == GameMode.battle) {
+      if (config.monsterConfig != null) {
+        // Clone monster to reset state
+        _monster = Monster(
+          name: config.monsterConfig!.name,
+          maxHp: config.monsterConfig!.maxHp,
+          currentHp: config.monsterConfig!.maxHp,
+          level: config.monsterConfig!.level,
+          abilityCooldown: config.monsterConfig!.abilityCooldown,
+        );
+      } else {
+        _monster = Monster(name: "Unknown", maxHp: 100, currentHp: 100, level: _level);
+      }
+    } else {
+      _monster = null;
+      if (config.rescueLayout != null) {
+          _rescueGrid = [];
+          for (int r=0; r<config.rescueLayout!.length; r++) {
+              List<RescueItem> row = [];
+              for (int c=0; c<config.rescueLayout![r].length; c++) {
+                  row.add(RescueItem(
+                      id: 'rescue_${r}_${c}',
+                      type: config.rescueLayout![r][c],
+                      row: r,
+                      col: c
+                  ));
+              }
+              _rescueGrid.add(row);
+          }
+      }
+      _energy = 0;
+    }
+  }
+
+  void triggerPin(int r, int c) {
+      if (_mode != GameMode.rescue) return;
+      if (r < 0 || r >= _rescueGrid.length || c < 0 || c >= _rescueGrid[0].length) return;
+
+      final item = _rescueGrid[r][c];
+      if (item.type == RescueType.pin) {
+          if (_energy >= 10) {
+              _energy -= 10;
+              _rescueGrid[r][c] = RescueItem(id: 'empty_pin_${r}_${c}', type: RescueType.empty, row: r, col: c);
+              notifyListeners();
+              _simulateRescuePhysics();
+          } else {
+              _eventController.add(MessageEvent("Need 10 Energy!"));
+          }
+      }
+  }
+
+  Future<void> _simulateRescuePhysics() async {
+     // TODO: Implement simulation
   }
 
   void startNextLevel() {
     _level++;
+    if (_level > 40) _level = 40; // Cap at 40
     _initLevel();
     generateGrid();
   }
@@ -168,6 +241,9 @@ class GameProvider with ChangeNotifier {
     final types = TileType.values.where((t) =>
        t != TileType.empty &&
        t != TileType.bomb &&
+       t != TileType.power &&
+       t != TileType.key &&
+       t != TileType.timedBomb &&
        t != TileType.stone &&
        t != TileType.ice &&
        t != TileType.poison
@@ -215,19 +291,23 @@ class GameProvider with ChangeNotifier {
     // 2. Animate Swap
     await Future.delayed(const Duration(milliseconds: 300));
 
-    // Check for Bomb interaction
-    bool isBombInteraction = tileA.type == TileType.bomb || tileB.type == TileType.bomb;
+    // Check for Bomb/Power interaction
+    bool isSpecialInteraction = tileA.isBomb || tileB.isBomb || tileA.isPower || tileB.isPower;
     bool validMove = false;
 
-    if (isBombInteraction) {
+    if (isSpecialInteraction) {
        validMove = true;
-       if (tileA.type == TileType.bomb) await _triggerBomb(tileA);
+
+       if (_grid[tileA.row][tileA.col].isBomb) await _triggerBomb(tileA);
+       else if (_grid[tileA.row][tileA.col].isPower) await _triggerPower(tileA);
 
        final t1 = _grid[newRow][newCol];
-       final t2 = _grid[row][col];
+       if (t1.isBomb) await _triggerBomb(t1);
+       else if (t1.isPower) await _triggerPower(t1);
 
-       if (t1.type == TileType.bomb) await _triggerBomb(t1);
-       if (t2.type == TileType.bomb) await _triggerBomb(t2);
+       final t2 = _grid[row][col];
+       if (t2.isBomb) await _triggerBomb(t2);
+       else if (t2.isPower) await _triggerPower(t2);
 
        await _processBoard();
     } else {
@@ -247,13 +327,16 @@ class GameProvider with ChangeNotifier {
 
     if (validMove) {
       _movesLeft--;
+      _processTurnEnd();
       _unlockAllTiles(); // Clear previous locks
 
-      // Monster Turn
-      _monster.turnsCounter++;
-      if (_monster.turnsCounter >= _monster.abilityCooldown && !_monster.isDead) {
-         _monster.turnsCounter = 0;
-         await _monsterAction();
+      // Monster Turn (Only in Battle Mode)
+      if (_mode == GameMode.battle && _monster != null) {
+          _monster!.turnsCounter++;
+          if (_monster!.turnsCounter >= _monster!.abilityCooldown && !_monster!.isDead) {
+             _monster!.turnsCounter = 0;
+             await _monsterAction();
+          }
       }
     }
 
@@ -269,7 +352,54 @@ class GameProvider with ChangeNotifier {
     }
   }
 
+  void _unlockLockedTiles(int count) {
+      int unlocked = 0;
+      for (var r in _grid) {
+          for (var t in r) {
+              if (t.isLocked && unlocked < count) {
+                  t.isLocked = false;
+                  unlocked++;
+              }
+          }
+      }
+      if (unlocked > 0) {
+           _eventController.add(MessageEvent("Unlocked $unlocked Tiles!"));
+      }
+  }
+
+  void _processTurnEnd() {
+      // 1. Poison Damage
+      int poisonCount = 0;
+      for (var r in _grid) {
+          for (var t in r) {
+              if (t.type == TileType.poison) poisonCount++;
+              else if (t.type == TileType.timedBomb) {
+                  t.turnsLeft--;
+                  if (t.turnsLeft <= 0) {
+                       _movesLeft -= 5;
+                       if (_movesLeft < 0) _movesLeft = 0;
+                       _eventController.add(MessageEvent("Bomb Exploded! -5 Moves"));
+                       _grid[t.row][t.col] = Tile(
+                           id: 'exploded_${t.id}',
+                           type: TileType.empty,
+                           row: t.row,
+                           col: t.col
+                       );
+                       _eventController.add(ShakeEvent());
+                  }
+              }
+          }
+      }
+      if (poisonCount > 0) {
+          int penalty = poisonCount * 50;
+          _score -= penalty;
+          if (_score < 0) _score = 0;
+          _eventController.add(MessageEvent("Poison Damage: -$penalty"));
+      }
+  }
+
   Future<void> _monsterAction() async {
+    if (_monster == null) return;
     // 3 Abilities: Heal, Lock Row, Poison
     // Pick random
     int action = _random.nextInt(3);
@@ -277,9 +407,9 @@ class GameProvider with ChangeNotifier {
     if (action == 0) {
       // Heal
       int heal = 50 + (_level * 10);
-      _monster.currentHp += heal;
-      if (_monster.currentHp > _monster.maxHp) _monster.currentHp = _monster.maxHp;
-      // Visual feedback could be added here (e.g. event)
+      _monster!.currentHp += heal;
+      if (_monster!.currentHp > _monster!.maxHp) _monster!.currentHp = _monster!.maxHp;
+      _eventController.add(MessageEvent("Monster Healed $heal HP!"));
     } else if (action == 1) {
       // Lock Random Row
       int r = _random.nextInt(rows);
@@ -288,6 +418,7 @@ class GameProvider with ChangeNotifier {
            _grid[r][c].isLocked = true;
          }
       }
+      _eventController.add(MessageEvent("Monster Locked Row ${r+1}!"));
     } else {
       // Add Poison Tile
       // Replace a random normal tile
@@ -308,6 +439,7 @@ class GameProvider with ChangeNotifier {
         }
         attempts++;
       }
+      _eventController.add(MessageEvent("Monster Poisoned a Tile!"));
     }
     notifyListeners();
     await Future.delayed(const Duration(milliseconds: 500)); // Pause for player to see
@@ -331,6 +463,9 @@ class GameProvider with ChangeNotifier {
     bool canMatch(TileType t) {
       return t != TileType.empty &&
              t != TileType.bomb &&
+             t != TileType.power &&
+             t != TileType.timedBomb &&
+             t != TileType.key &&
              t != TileType.stone &&
              t != TileType.ice &&
              t != TileType.poison;
@@ -441,13 +576,29 @@ class GameProvider with ChangeNotifier {
       _eventController.add(DamageEvent(damage));
 
       _score += points;
-      _monster.currentHp -= damage;
-      if (_monster.currentHp < 0) _monster.currentHp = 0;
 
-      // Determine bomb creation
-      Tile? bombTarget;
+      if (_mode == GameMode.battle && _monster != null) {
+          _monster!.currentHp -= damage;
+          if (_monster!.currentHp < 0) _monster!.currentHp = 0;
+      } else if (_mode == GameMode.rescue) {
+          _energy += damage;
+      }
+
+      // Key Unlock Logic
+      if (center.type == TileType.key) {
+           _unlockLockedTiles(3);
+      }
+
+      // Determine special creation
+      TileType? specialType;
+      Tile? specialTarget;
+
       if (cluster.length >= 5) {
-         bombTarget = center;
+         specialType = TileType.bomb;
+         specialTarget = center;
+      } else if (cluster.length == 4) {
+         specialType = TileType.power;
+         specialTarget = center;
       }
 
       // Check adjacent obstacles
@@ -465,14 +616,16 @@ class GameProvider with ChangeNotifier {
       }
 
       for (var tile in cluster) {
-         if (bombTarget != null && tile == bombTarget) {
+         if (specialTarget != null && tile == specialTarget) {
             _grid[tile.row][tile.col] = Tile(
-              id: 'bomb_${DateTime.now().microsecondsSinceEpoch}',
-              type: TileType.bomb,
+              id: '${specialType}_${DateTime.now().microsecondsSinceEpoch}',
+              type: specialType!,
               row: tile.row,
               col: tile.col,
             );
-            _eventController.add(BombEvent(tile.row, tile.col));
+            if (specialType == TileType.bomb) {
+               _eventController.add(BombEvent(tile.row, tile.col));
+            }
          } else {
             _grid[tile.row][tile.col] = Tile(
               id: 'empty_${tile.row}_${tile.col}_${_random.nextInt(1000)}',
@@ -513,9 +666,25 @@ class GameProvider with ChangeNotifier {
          }
        }
      }
+     await _clearTiles(tilesToRemove, bomb.row, bomb.col);
+  }
 
+  Future<void> _triggerPower(Tile power) async {
+     List<Tile> tilesToRemove = [];
+     for (int c = 0; c < cols; c++) {
+        tilesToRemove.add(_grid[power.row][c]);
+     }
+     for (int r = 0; r < rows; r++) {
+        if (r != power.row) {
+            tilesToRemove.add(_grid[r][power.col]);
+        }
+     }
+     await _clearTiles(tilesToRemove, power.row, power.col);
+  }
+
+  Future<void> _clearTiles(List<Tile> tiles, int originRow, int originCol) async {
      int count = 0;
-     for (var t in tilesToRemove) {
+     for (var t in tiles) {
         if (t.type != TileType.empty) {
           count++;
           _grid[t.row][t.col] = Tile(
@@ -529,14 +698,16 @@ class GameProvider with ChangeNotifier {
 
      if (count > 0) {
        int points = count * 10;
-       _eventController.add(ScoreEvent(points, bomb.row, bomb.col));
+       _eventController.add(ScoreEvent(points, originRow, originCol));
        _eventController.add(DamageEvent(count));
-       _eventController.add(BombEvent(bomb.row, bomb.col));
        _eventController.add(ShakeEvent());
 
        _score += points;
-       _monster.currentHp -= count;
-       if (_monster.currentHp < 0) _monster.currentHp = 0;
+
+       if (_mode == GameMode.battle && _monster != null) {
+           _monster!.currentHp -= count;
+           if (_monster!.currentHp < 0) _monster!.currentHp = 0;
+       }
        notifyListeners();
      }
   }

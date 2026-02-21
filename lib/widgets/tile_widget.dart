@@ -15,7 +15,8 @@ class TileWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     if (tile.type == TileType.empty) return const SizedBox.shrink();
 
-    final isBomb = tile.isBomb || tile.type == TileType.bomb;
+    final isBomb = tile.type == TileType.bomb || tile.type == TileType.timedBomb;
+    final isPower = tile.type == TileType.power;
 
     return Container(
       width: size,
@@ -33,9 +34,9 @@ class TileWidget extends StatelessWidget {
              blurRadius: 4,
              offset: const Offset(0, 4),
            ),
-           if (isBomb)
+           if (isBomb || isPower)
               BoxShadow(
-                color: Colors.orangeAccent.withValues(alpha: 0.6),
+                color: (isBomb ? Colors.redAccent : Colors.yellowAccent).withValues(alpha: 0.6),
                 blurRadius: 12,
                 spreadRadius: 2,
               )
@@ -57,9 +58,25 @@ class TileWidget extends StatelessWidget {
              width: size * 0.8,
              height: size * 0.8,
           ),
-          _getIcon(tile.type, size),
+
+          if (tile.type == TileType.timedBomb)
+             Center(
+               child: Text(
+                 "${tile.turnsLeft}",
+                 style: TextStyle(
+                   color: Colors.redAccent,
+                   fontWeight: FontWeight.bold,
+                   fontSize: size * 0.5,
+                   shadows: const [Shadow(color: Colors.black, blurRadius: 2)]
+                 )
+               ),
+             )
+          else
+             _getIcon(tile.type, size),
+
           if (tile.type == TileType.stone && tile.hp == 1)
              Icon(Icons.broken_image, color: Colors.black.withValues(alpha: 0.4), size: size * 0.5),
+
           if (tile.isLocked)
              Container(
                decoration: BoxDecoration(
@@ -77,8 +94,8 @@ class TileWidget extends StatelessWidget {
 
   List<Color> _getGradientColors(TileType type) {
     Color base = _getColor(type);
-    Color dark = Color.lerp(base, Colors.black, 0.4)!;
-    Color light = Color.lerp(base, Colors.white, 0.2)!;
+    Color dark = Color.lerp(base, Colors.black, 0.4) ?? Colors.black;
+    Color light = Color.lerp(base, Colors.white, 0.2) ?? Colors.white;
 
     // Reverse gradient for depth
     return [light, base, dark];
@@ -94,6 +111,9 @@ class TileWidget extends StatelessWidget {
       case TileType.stone: return const Color(0xFF757575); // Grey
       case TileType.ice: return const Color(0xFF4DD0E1); // Cyan
       case TileType.poison: return const Color(0xFF66BB6A); // Green Poison
+      case TileType.key: return const Color(0xFFFFD54F); // Amber Key
+      case TileType.timedBomb: return const Color(0xFF212121); // Black Bomb
+      case TileType.power: return const Color(0xFFFFEE58); // Yellow Power
       case TileType.empty: return Colors.transparent;
     }
   }
@@ -132,6 +152,17 @@ class TileWidget extends StatelessWidget {
       case TileType.poison:
         icon = Icons.dangerous;
         color = Colors.purpleAccent;
+        break;
+      case TileType.key:
+        icon = Icons.vpn_key;
+        color = Colors.black87;
+        break;
+      case TileType.timedBomb:
+        // Handled in build method with text
+        return const SizedBox.shrink();
+      case TileType.power:
+        icon = Icons.flash_on;
+        color = Colors.redAccent;
         break;
       case TileType.empty:
         return const SizedBox.shrink();

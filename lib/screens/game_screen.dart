@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 import '../providers/game_provider.dart';
 import '../widgets/board_widget.dart';
 import '../widgets/adventure_scene.dart';
+import '../widgets/rescue_widget.dart';
 import '../services/storage_service.dart';
+import '../models/level_config.dart';
 
 class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
@@ -32,10 +34,8 @@ class BlastEffectData {
 class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   bool _isDialogShowing = false;
   late GameProvider _gameProvider;
-
   late StreamSubscription _eventSubscription;
-  final List<dynamic> _effects = []; // Can be ScorePopupData or BlastEffectData
-
+  final List<dynamic> _effects = [];
   late AnimationController _shakeController;
 
   @override
@@ -43,17 +43,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     super.initState();
     _gameProvider = context.read<GameProvider>();
     _gameProvider.addListener(_onGameUpdate);
-
     _eventSubscription = _gameProvider.events.listen(_handleEvent);
-
-    _shakeController = AnimationController(
-       vsync: this,
-       duration: const Duration(milliseconds: 400)
-    );
-    // Simpler shake:
-    _shakeController.addListener(() {
-       setState(() {});
-    });
+    _shakeController = AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
+    _shakeController.addListener(() => setState(() {}));
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _gameProvider.generateGrid();
@@ -74,17 +66,23 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           _effects.add(ScorePopupData(event.score, event.row, event.col));
         });
      } else if (event is DamageEvent) {
-        // Small shake on damage? Or rely on ShakeEvent for big hits?
-        // Let's keep small shake for damage feedback
         _shakeController.animateTo(0.5, curve: Curves.easeIn).then((_) => _shakeController.reverse());
      } else if (event is ShakeEvent) {
-        // Big shake for combos
         _shakeController.forward(from: 0).then((_) => _shakeController.reverse());
      } else if (event is BombEvent) {
         setState(() {
            _effects.add(BlastEffectData(event.row, event.col));
         });
         _shakeController.forward(from: 0).then((_) => _shakeController.reverse());
+     } else if (event is MessageEvent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(event.message, textAlign: TextAlign.center),
+              duration: const Duration(milliseconds: 1000),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Colors.black87,
+            )
+        );
      }
   }
 
@@ -97,185 +95,226 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   void _onGameUpdate() {
-    if (!mounted) return;
-    if (_isDialogShowing) return;
+    if (!mounted || _isDialogShowing) return;
 
-    if (_gameProvider.monster.currentHp <= 0) {
-       _isDialogShowing = true;
-       showDialog(
-         context: context,
-         barrierDismissible: false,
-         builder: (ctx) => AlertDialog(
-           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-           title: const Text("Victory!", textAlign: TextAlign.center),
-           content: Column(
-             mainAxisSize: MainAxisSize.min,
-             children: [
-               const Icon(Icons.emoji_events, color: Colors.amber, size: 60),
-               const SizedBox(height: 16),
-               Text("You defeated the ${_gameProvider.monster.name}!", textAlign: TextAlign.center),
-             ],
-           ),
-           actions: [
-             TextButton(
-               onPressed: () {
-                 _isDialogShowing = false;
-                 Navigator.pop(ctx);
-                 _gameProvider.startNextLevel();
-               },
-               child: const Text("Next Level", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-             )
-           ],
-         ),
-       );
+    bool win = false;
+    bool lose = false;
+    String title = "";
+    String message = "";
+
+    if (_gameProvider.isLevelComplete) {
+       win = true;
+       title = "Stage Clear!";
+       message = "Hero Rescued!";
+    } else if (_gameProvider.isLevelFailed) {
+       lose = true;
+       title = "Stage Failed";
+       message = "The Hero was lost.";
+    } else if (_gameProvider.mode == GameMode.battle) {
+         if (_gameProvider.monster != null && _gameProvider.monster!.isDead) {
+             win = true;
+             title = "Victory!";
+             message = "You defeated the ${_gameProvider.monster!.name}!";
+         } else if (_gameProvider.movesLeft <= 0) {
+             lose = true;
+             title = "Defeat";
+             message = "Out of moves!";
+         }
     } else if (_gameProvider.movesLeft <= 0) {
-       _isDialogShowing = true;
-       showDialog(
+        // Fallback for Rescue if flag not set but moves out
+        lose = true;
+        title = "Time's Up";
+        message = "Out of moves!";
+    }
+
+    if (win) {
+       _showDialog(title, message, true);
+    } else if (lose) {
+       _showDialog(title, message, false);
+    }
+  }
+
+  void _showDialog(String title, String message, bool isWin) {
+      _isDialogShowing = true;
+      if (isWin) {
+         context.read<StorageService>().saveHighScore(_gameProvider.score);
+         context.read<StorageService>().unlockLevel(_gameProvider.level + 1);
+      }
+
+      showDialog(
          context: context,
          barrierDismissible: false,
          builder: (ctx) => AlertDialog(
-           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-           title: const Text("Level Failed", textAlign: TextAlign.center),
+           backgroundColor: Colors.grey[900],
+           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: isWin ? Colors.amber : Colors.red, width: 2)),
+           title: Text(title, textAlign: TextAlign.center, style: TextStyle(color: isWin ? Colors.amber : Colors.redAccent, fontWeight: FontWeight.bold)),
            content: Column(
              mainAxisSize: MainAxisSize.min,
              children: [
-               const Icon(Icons.sentiment_very_dissatisfied, color: Colors.redAccent, size: 60),
+               Icon(isWin ? Icons.emoji_events : Icons.sentiment_very_dissatisfied, color: isWin ? Colors.amber : Colors.redAccent, size: 60),
                const SizedBox(height: 16),
-               const Text("Out of moves! The monster survived.", textAlign: TextAlign.center),
+               Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
+               const SizedBox(height: 16),
+               Text("Score: ${_gameProvider.score}", style: const TextStyle(color: Colors.white, fontSize: 18)),
              ],
            ),
            actions: [
+             if (isWin)
+               TextButton(
+                 onPressed: () {
+                   _isDialogShowing = false;
+                   Navigator.pop(ctx);
+                   _gameProvider.startNextLevel();
+                 },
+                 child: const Text("Next Level", style: TextStyle(fontSize: 18, color: Colors.greenAccent)),
+               ),
              TextButton(
                onPressed: () {
                  _isDialogShowing = false;
                  Navigator.pop(ctx);
-                 _gameProvider.restartLevel();
+                 if (isWin) {
+                    // Go to map? For now restart or next is handled above.
+                    // If win, user might want to replay? Usually Next.
+                    // But if it's last level?
+                    Navigator.pop(context); // Exit to map
+                 } else {
+                    _gameProvider.restartLevel();
+                 }
                },
-               child: const Text("Try Again", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+               child: Text(isWin ? "Map" : "Try Again", style: const TextStyle(fontSize: 18, color: Colors.blueAccent)),
              )
            ],
          ),
        );
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Shake offset
     double shake = sin(_shakeController.value * pi * 4) * 8 * _shakeController.value;
 
-    return PopScope(
-      canPop: true,
-      onPopInvokedWithResult: (didPop, result) async {
-         if (didPop) {
-           final storage = context.read<StorageService>();
-           await storage.saveHighScore(context.read<GameProvider>().score);
-         }
-      },
-      child: Scaffold(
-        body: Column(
-          children: [
-            // Top Area: Adventure
-            Expanded(
-              flex: 3,
-              child: Transform.translate(
-                offset: Offset(shake, 0),
-                child: const AdventureScene(),
-              ),
-            ),
+    int worldIndex = (_gameProvider.level - 1) ~/ 10;
+    List<Color> bgColors;
+    if (worldIndex == 0) bgColors = [Colors.green[900]!, Colors.green[700]!];
+    else if (worldIndex == 1) bgColors = [Colors.red[900]!, Colors.orange[900]!];
+    else if (worldIndex == 2) bgColors = [Colors.purple[900]!, Colors.deepPurple[800]!];
+    else bgColors = [Colors.black, Colors.blueGrey[900]!];
 
-            // Bottom Area: Board
-            Expanded(
-              flex: 7,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2C3E50),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      blurRadius: 20,
-                      offset: const Offset(0, -5),
-                    )
-                  ],
+    return Scaffold(
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: bgColors,
+            )
+          ),
+          child: SafeArea(
+            child: Column(
+              children: [
+                // Top Bar
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.pause_circle_filled, color: Colors.white70, size: 32),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      Column(
+                        children: [
+                           Text("Level ${_gameProvider.level}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                           Text("${_gameProvider.movesLeft} Moves", style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 20)),
+                        ],
+                      ),
+                      Column(
+                        children: [
+                           Text(_gameProvider.mode == GameMode.rescue ? "Energy" : "Score", style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                           Text(_gameProvider.mode == GameMode.rescue ? "${_gameProvider.energy}" : "${_gameProvider.score}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                        ],
+                      )
+                    ],
+                  ),
                 ),
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+
+                // Top Area: Adventure or Rescue
+                Expanded(
+                  flex: 4,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Transform.translate(
+                      offset: Offset(shake, 0),
+                      child: _gameProvider.mode == GameMode.rescue
+                          ? const RescueWidget()
+                          : const AdventureScene(),
+                    ),
+                  ),
+                ),
+
+                // Bottom Area: Board
+                Expanded(
+                  flex: 6,
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      final double availableWidth = constraints.maxWidth - 32;
-                      final double availableHeight = constraints.maxHeight - 32; // 16*2 padding
+                      final double availableWidth = constraints.maxWidth - 16;
+                      final double availableHeight = constraints.maxHeight - 16;
 
-                      final double tileWidth = availableWidth / GameProvider.cols;
-                      final double tileHeight = availableHeight / GameProvider.rows;
-                      final double size = tileWidth < tileHeight ? tileWidth : tileHeight;
+                      // Aspect ratio 7:9 (cols:rows)
+                      double boardWidth = availableWidth;
+                      double boardHeight = availableWidth * (GameProvider.rows / GameProvider.cols);
 
-                      final double offsetX = (constraints.maxWidth - (size * GameProvider.cols)) / 2;
-                      final double offsetY = (constraints.maxHeight - (size * GameProvider.rows)) / 2;
+                      if (boardHeight > availableHeight) {
+                          boardHeight = availableHeight;
+                          boardWidth = boardHeight * (GameProvider.cols / GameProvider.rows);
+                      }
+
+                      final double tileSize = boardWidth / GameProvider.cols;
+                      final double offsetX = (constraints.maxWidth - boardWidth) / 2;
+                      final double offsetY = (constraints.maxHeight - boardHeight) / 2;
 
                       return Stack(
                         children: [
-                           Positioned.fill(
-                             child: Opacity(
-                               opacity: 0.05,
-                               child: GridPaper(color: Colors.white, interval: 50),
+                           Center(
+                             child: Container(
+                               width: boardWidth,
+                               height: boardHeight,
+                               decoration: BoxDecoration(
+                                 color: Colors.black45,
+                                 borderRadius: BorderRadius.circular(8),
+                               ),
+                               child: const BoardWidget(),
                              ),
                            ),
-                           const Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: BoardWidget(),
-                          ),
-
-                          // Effects
-                          ..._effects.map((e) {
-                            if (e is ScorePopupData) {
-                              return Positioned(
-                                key: ValueKey(e.id),
-                                left: offsetX + (e.col * size),
-                                top: offsetY + (e.row * size),
-                                width: size,
-                                height: size,
-                                child: ScorePopupWidget(
-                                  data: e,
-                                  onComplete: () => _removeEffect(e.id),
-                                ),
-                              );
-                            } else if (e is BlastEffectData) {
-                              // Blast covers 3x3 if possible, or just huge explosion at center
-                              return Positioned(
-                                key: ValueKey(e.id),
-                                left: offsetX + ((e.col - 1) * size), // Center on tile but larger
-                                top: offsetY + ((e.row - 1) * size),
-                                width: size * 3,
-                                height: size * 3,
-                                child: BlastEffectWidget(
-                                  data: e,
-                                  onComplete: () => _removeEffect(e.id),
-                                ),
-                              );
-                            }
-                            return const SizedBox.shrink();
-                          }),
-
-                          // Back Button
-                          Positioned(
-                            top: 16,
-                            left: 16,
-                            child: IconButton(
-                              icon: const Icon(Icons.arrow_back, color: Colors.white),
-                              onPressed: () => Navigator.of(context).pop(),
-                            ),
-                          ),
+                           // Effects
+                           ..._effects.map((e) {
+                             if (e is ScorePopupData) {
+                               return Positioned(
+                                 left: offsetX + (e.col * tileSize),
+                                 top: offsetY + (e.row * tileSize),
+                                 width: tileSize,
+                                 height: tileSize,
+                                 child: ScorePopupWidget(data: e, onComplete: () => _removeEffect(e.id)),
+                               );
+                             } else if (e is BlastEffectData) {
+                               return Positioned(
+                                 left: offsetX + ((e.col - 1) * tileSize),
+                                 top: offsetY + ((e.row - 1) * tileSize),
+                                 width: tileSize * 3,
+                                 height: tileSize * 3,
+                                 child: BlastEffectWidget(data: e, onComplete: () => _removeEffect(e.id)),
+                               );
+                             }
+                             return const SizedBox.shrink();
+                           }).toList(),
                         ],
                       );
                     }
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
     );
   }
 }

@@ -10,68 +10,16 @@ class AdventureScene extends StatelessWidget {
     return Consumer<GameProvider>(
       builder: (context, game, child) {
         final monster = game.monster;
+        if (monster == null) return const SizedBox.shrink();
+
         return Container(
           width: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF200122), Color(0xFF6f0000)], // Dark purple to red (dungeon vibe)
-            ),
-          ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Top Bar: Level Info & Score
-              SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Level ${game.level}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              shadows: [Shadow(color: Colors.black, blurRadius: 4)],
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Moves: ${game.movesLeft}',
-                            style: TextStyle(
-                              color: game.movesLeft <= 5 ? Colors.redAccent : Colors.lightBlueAccent,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
-                            ),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        'Score: ${game.score}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          shadows: [Shadow(color: Colors.black, blurRadius: 4)],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
               // Battle Area
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Center(
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: SizedBox(
@@ -91,9 +39,9 @@ class AdventureScene extends StatelessWidget {
                 ),
               ),
 
-              // Bottom HP Bar (full width)
+              // Bottom HP Bar
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
