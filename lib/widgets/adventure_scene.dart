@@ -10,9 +10,11 @@ class AdventureScene extends StatelessWidget {
     return Consumer<GameProvider>(
       builder: (context, game, child) {
         final monster = game.monster;
-        if (monster == null) return const SizedBox.shrink();
+        if (monster == null) {
+          return const SizedBox.shrink();
+        }
 
-        return Container(
+        return SizedBox(
           width: double.infinity,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,

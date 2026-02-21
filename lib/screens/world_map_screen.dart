@@ -49,10 +49,15 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
             Widget? header;
             if ((level - 1) % 10 == 0) {
                String worldName = "World ${worldIndex + 1}";
-               if (worldIndex == 0) worldName = "Goblin Forest";
-               else if (worldIndex == 1) worldName = "Fire Dungeon";
-               else if (worldIndex == 2) worldName = "Snake Temple";
-               else worldName = "Dark Castle";
+               if (worldIndex == 0) {
+                 worldName = "Goblin Forest";
+               } else if (worldIndex == 1) {
+                 worldName = "Fire Dungeon";
+               } else if (worldIndex == 2) {
+                 worldName = "Snake Temple";
+               } else {
+                 worldName = "Dark Castle";
+               }
 
                header = Padding(
                  padding: const EdgeInsets.symmetric(vertical: 16.0),
