@@ -5,7 +5,7 @@ import '../models/tile.dart';
 import '../models/monster.dart';
 import '../models/rescue_item.dart';
 import '../models/level_config.dart';
-import '../data/levels_data.dart';
+import '../services/level_service.dart';
 
 enum Direction { up, down, left, right }
 
@@ -30,6 +30,12 @@ class BombEvent extends GameEvent {
 }
 
 class ShakeEvent extends GameEvent {}
+
+class PinRemovedEvent extends GameEvent {
+  final int row;
+  final int col;
+  PinRemovedEvent(this.row, this.col);
+}
 
 class MessageEvent extends GameEvent {
   final String message;
@@ -75,8 +81,9 @@ class GameProvider with ChangeNotifier {
   GameMode get mode => _mode;
 
   final Random _random = Random();
+  final LevelService _levelService;
 
-  GameProvider() {
+  GameProvider(this._levelService) {
     _initLevel();
     generateGrid();
   }
@@ -99,12 +106,8 @@ class GameProvider with ChangeNotifier {
   }
 
   void _initLevel() {
-    final levels = getLevels();
     // Safety check if level > 40
-    final config = levels.firstWhere(
-        (l) => l.levelNumber == _level,
-        orElse: () => levels.last
-    );
+    final config = _levelService.getLevel(_level);
 
     _mode = config.mode;
     _maxMoves = config.maxMoves;
@@ -155,6 +158,14 @@ class GameProvider with ChangeNotifier {
       if (item.type == RescueType.pin) {
           if (_energy >= 10) {
               _energy -= 10;
+              _eventController.add(PinRemovedEvent(r, c));
+
+              // Delay removal slightly for animation? Or remove immediately and let UI animate?
+              // UI needs to know it WAS a pin to animate out.
+              // If I remove it now, UI sees empty.
+              // I'll emit event, UI plays animation, then after delay I remove it?
+              // No, logic should be instant. UI can handle "ghost" or overlay.
+
               _rescueGrid[r][c] = RescueItem(id: 'empty_pin_${r}_$c', type: RescueType.empty, row: r, col: c);
               notifyListeners();
               _simulateRescuePhysics();
@@ -297,7 +308,9 @@ class GameProvider with ChangeNotifier {
        t != TileType.timedBomb &&
        t != TileType.stone &&
        t != TileType.ice &&
-       t != TileType.poison
+       t != TileType.poison &&
+       t != TileType.rocket &&
+       t != TileType.lamp
     ).toList();
     final type = types[_random.nextInt(types.length)];
     return Tile(
@@ -342,31 +355,30 @@ class GameProvider with ChangeNotifier {
     // 2. Animate Swap
     await Future.delayed(const Duration(milliseconds: 300));
 
-    // Check for Bomb/Power interaction
-    bool isSpecialInteraction = tileA.isBomb || tileB.isBomb || tileA.isPower || tileB.isPower;
+    // Check for Special interaction
+    bool isSpecialInteraction = tileA.isBomb || tileB.isBomb || tileA.isPower || tileB.isPower ||
+                                tileA.isRocket || tileB.isRocket || tileA.isLamp || tileB.isLamp;
     bool validMove = false;
 
     if (isSpecialInteraction) {
        validMove = true;
 
-       if (_grid[tileA.row][tileA.col].isBomb) {
-         await _triggerBomb(tileA);
-       } else if (_grid[tileA.row][tileA.col].isPower) {
-         await _triggerPower(tileA);
-       }
-
-       final t1 = _grid[newRow][newCol];
-       if (t1.isBomb) {
-         await _triggerBomb(t1);
-       } else if (t1.isPower) {
-         await _triggerPower(t1);
-       }
-
-       final t2 = _grid[row][col];
-       if (t2.isBomb) {
-         await _triggerBomb(t2);
-       } else if (t2.isPower) {
-         await _triggerPower(t2);
+       // Handle Lamp Swap specifically
+       if (tileA.isLamp && !tileB.isLamp && tileB.type != TileType.empty) {
+          await _triggerLamp(tileA, tileB.type);
+          _grid[tileA.row][tileA.col] = Tile(id: 'empty_${tileA.id}', type: TileType.empty, row: tileA.row, col: tileA.col);
+       } else if (tileB.isLamp && !tileA.isLamp && tileA.type != TileType.empty) {
+          await _triggerLamp(tileB, tileA.type);
+           _grid[tileB.row][tileB.col] = Tile(id: 'empty_${tileB.id}', type: TileType.empty, row: tileB.row, col: tileB.col);
+       } else if (tileA.isLamp && tileB.isLamp) {
+          // Double Lamp - Clear Board
+           await _triggerLampAll();
+           _grid[tileA.row][tileA.col] = Tile(id: 'empty_${tileA.id}', type: TileType.empty, row: tileA.row, col: tileA.col);
+           _grid[tileB.row][tileB.col] = Tile(id: 'empty_${tileB.id}', type: TileType.empty, row: tileB.row, col: tileB.col);
+       } else {
+          // Other specials or interactions
+          await _triggerSpecial(tileA);
+          await _triggerSpecial(tileB);
        }
 
        await _processBoard();
@@ -481,6 +493,7 @@ class GameProvider with ChangeNotifier {
       for (int c = 0; c < cols; c++) {
          if (_grid[r][c].type != TileType.empty) {
            _grid[r][c].isLocked = true;
+           _grid[r][c].hp = 2; // Needs 2 hits
          }
       }
       _eventController.add(MessageEvent("Monster Locked Row ${r+1}!"));
@@ -533,7 +546,9 @@ class GameProvider with ChangeNotifier {
              t != TileType.key &&
              t != TileType.stone &&
              t != TileType.ice &&
-             t != TileType.poison;
+             t != TileType.poison &&
+             t != TileType.rocket &&
+             t != TileType.lamp;
     }
 
     // Horizontal
@@ -659,10 +674,10 @@ class GameProvider with ChangeNotifier {
       Tile? specialTarget;
 
       if (cluster.length >= 5) {
-         specialType = TileType.bomb;
+         specialType = TileType.lamp; // 5 -> Lamp
          specialTarget = center;
       } else if (cluster.length == 4) {
-         specialType = TileType.power;
+         specialType = TileType.rocket; // 4 -> Rocket
          specialTarget = center;
       }
 
@@ -692,12 +707,30 @@ class GameProvider with ChangeNotifier {
                _eventController.add(BombEvent(tile.row, tile.col));
             }
          } else {
-            _grid[tile.row][tile.col] = Tile(
-              id: 'empty_${tile.row}_${tile.col}_${_random.nextInt(1000)}',
-              type: TileType.empty,
-              row: tile.row,
-              col: tile.col
-            );
+            // Handle Locked Logic
+            if (tile.isLocked) {
+                tile.hp--;
+                if (tile.hp <= 0) {
+                    tile.isLocked = false;
+                    // Now it disappears as it was part of match and lock is broken
+                    _grid[tile.row][tile.col] = Tile(
+                      id: 'empty_${tile.row}_${tile.col}_${_random.nextInt(1000)}',
+                      type: TileType.empty,
+                      row: tile.row,
+                      col: tile.col
+                    );
+                } else {
+                    // Stays locked, just damaged
+                    _eventController.add(MessageEvent("Lock Damaged!"));
+                }
+            } else {
+                _grid[tile.row][tile.col] = Tile(
+                  id: 'empty_${tile.row}_${tile.col}_${_random.nextInt(1000)}',
+                  type: TileType.empty,
+                  row: tile.row,
+                  col: tile.col
+                );
+            }
          }
       }
     }
@@ -720,6 +753,62 @@ class GameProvider with ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  Future<void> _triggerSpecial(Tile tile) async {
+      if (tile.isBomb) {
+        await _triggerBomb(tile);
+      } else if (tile.isPower) {
+        await _triggerPower(tile);
+      } else if (tile.isRocket) {
+        await _triggerRocket(tile);
+      } else if (tile.isLamp) {
+        await _triggerLamp(tile, null);
+      }
+  }
+
+  Future<void> _triggerRocket(Tile rocket) async {
+     // Clear Row AND Column for maximum effect
+     List<Tile> tilesToRemove = [];
+     for (int c = 0; c < cols; c++) {
+        tilesToRemove.add(_grid[rocket.row][c]);
+     }
+     for (int r = 0; r < rows; r++) {
+        if (r != rocket.row) {
+            tilesToRemove.add(_grid[r][rocket.col]);
+        }
+     }
+     await _clearTiles(tilesToRemove, rocket.row, rocket.col);
+  }
+
+  Future<void> _triggerLamp(Tile lamp, TileType? targetColor) async {
+      // If targetColor is null (e.g. hit by explosion), pick random color
+      if (targetColor == null) {
+          final colors = [TileType.sword, TileType.shield, TileType.crystal, TileType.heart];
+          targetColor = colors[_random.nextInt(colors.length)];
+      }
+
+      List<Tile> tilesToRemove = [];
+      for(var row in _grid) {
+          for(var t in row) {
+              if (t.type == targetColor) {
+                  tilesToRemove.add(t);
+              }
+          }
+      }
+      await _clearTiles(tilesToRemove, lamp.row, lamp.col);
+  }
+
+  Future<void> _triggerLampAll() async {
+      List<Tile> tilesToRemove = [];
+      for(var row in _grid) {
+          for(var t in row) {
+              if (t.type != TileType.empty) {
+                  tilesToRemove.add(t);
+              }
+          }
+      }
+      await _clearTiles(tilesToRemove, rows ~/ 2, cols ~/ 2);
   }
 
   Future<void> _triggerBomb(Tile bomb) async {
