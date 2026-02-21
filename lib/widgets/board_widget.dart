@@ -43,10 +43,14 @@ class BoardWidget extends StatelessWidget {
                     top: offsetY + (tile.row * size) + (size - tileSize) / 2,
                     width: tileSize,
                     height: tileSize,
-                    child: TileWidget(
-                      tile: tile,
-                      size: tileSize,
-                      onTap: () => game.handleTap(tile.row, tile.col),
+                    child: _TileGestureDetector(
+                      onSwipe: (dir) {
+                        game.handleSwap(tile.row, tile.col, dir);
+                      },
+                      child: TileWidget(
+                        tile: tile,
+                        size: tileSize,
+                      ),
                     ),
                   )
                 );
@@ -60,6 +64,47 @@ class BoardWidget extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+class _TileGestureDetector extends StatefulWidget {
+  final Widget child;
+  final Function(Direction) onSwipe;
+
+  const _TileGestureDetector({required this.child, required this.onSwipe});
+
+  @override
+  State<_TileGestureDetector> createState() => _TileGestureDetectorState();
+}
+
+class _TileGestureDetectorState extends State<_TileGestureDetector> {
+  Offset? _startPos;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onPanStart: (details) => _startPos = details.localPosition,
+      onPanUpdate: (details) {
+         if (_startPos == null) return;
+         final dy = details.localPosition.dy - _startPos!.dy;
+         final dx = details.localPosition.dx - _startPos!.dx;
+
+         // Threshold for swipe detection (e.g. 10% of tile or fixed px)
+         // Using fixed px for simplicity
+         if (dx.abs() > 15 || dy.abs() > 15) {
+            Direction? dir;
+            if (dx.abs() > dy.abs()) {
+               dir = dx > 0 ? Direction.right : Direction.left;
+            } else {
+               dir = dy > 0 ? Direction.down : Direction.up;
+            }
+            widget.onSwipe(dir);
+            _startPos = null; // Reset to prevent multiple triggers
+         }
+      },
+      onPanEnd: (_) => _startPos = null,
+      child: widget.child,
     );
   }
 }

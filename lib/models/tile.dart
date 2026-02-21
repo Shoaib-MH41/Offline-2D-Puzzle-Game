@@ -1,10 +1,10 @@
 enum TileType {
-  red,
-  blue,
-  green,
-  yellow,
-  purple,
-  empty, // For empty spaces
+  sword,
+  shield,
+  crystal,
+  heart,
+  bomb,
+  empty,
 }
 
 class Tile {
@@ -12,16 +12,16 @@ class Tile {
   TileType type;
   int row;
   int col;
-  bool isBomb;
 
   Tile({
     required this.id,
     required this.type,
     required this.row,
     required this.col,
-    this.isBomb = false,
   });
 
+  bool get isBomb => type == TileType.bomb;
+
   @override
-  String toString() => 'Tile(id: $id, type: $type, row: $row, col: $col, isBomb: $isBomb)';
+  String toString() => 'Tile(id: $id, type: $type, row: $row, col: $col)';
 }

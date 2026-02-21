@@ -8,71 +8,65 @@ void main() {
 
     setUp(() {
       provider = GameProvider();
-    });
-
-    test('generateGrid creates a 9x7 grid with non-empty tiles', () {
-      expect(provider.grid.length, 9);
-      expect(provider.grid[0].length, 7);
-
-      for (var row in provider.grid) {
-        for (var tile in row) {
-          expect(tile.type, isNot(TileType.empty));
+      // Fill grid with checkerboard pattern to ensure no matches
+      for (int r = 0; r < GameProvider.rows; r++) {
+        for (int c = 0; c < GameProvider.cols; c++) {
+          // Alternating Sword and Shield
+          final type = (r + c) % 2 == 0 ? TileType.sword : TileType.shield;
+          provider.grid[r][c] = Tile(
+            id: 'init_${r}_$c',
+            type: type,
+            row: r,
+            col: c
+          );
         }
       }
     });
 
-    test('handleTap with match >= 2 removes tiles and updates score', () async {
-      // Set bottom two tiles of column 0 to RED
-      // Grid is 9 rows (0-8). 8 is bottom.
-      provider.grid[8][0] = Tile(id: 'r1', type: TileType.red, row: 8, col: 0);
-      provider.grid[7][0] = Tile(id: 'r2', type: TileType.red, row: 7, col: 0);
-
-      // Ensure neighbor (8,1) and (7,1) and (6,0) are different
-      provider.grid[8][1] = Tile(id: 'b1', type: TileType.blue, row: 8, col: 1);
-      provider.grid[7][1] = Tile(id: 'b2', type: TileType.blue, row: 7, col: 1);
-      provider.grid[6][0] = Tile(id: 'g1', type: TileType.green, row: 6, col: 0);
-
-      // Initial score
-      expect(provider.score, 0);
-
-      // Tap on (8, 0)
-      await provider.handleTap(8, 0);
-
-      // Score should increase (2 tiles * 10 = 20)
-      expect(provider.score, 20);
-
-      // (8,0) and (7,0) were removed.
-      // (6,0) which was Green should fall down to fill the gap.
-      // 2 tiles removed. Gap created at 8,0 and 7,0.
-      // Gravity pulls 6,0 down to 8,0 (since 2 slots cleared below it).
-
-      // Check 8,0 is now Green (the one that fell) OR a new random tile if refill logic applies?
-      // Wait. Logic:
-      // Remove 8,0 and 7,0.
-      // Apply Gravity:
-      // 6,0 moves to 8,0. (Green)
-      // 5,0 moves to 7,0.
-      // ...
-      // Refill fills top.
-
-      // So 8,0 should be the Green tile (id: g1).
-      expect(provider.grid[8][0].id, 'g1');
-      expect(provider.grid[8][0].type, TileType.green);
+    test('generateGrid creates a 9x7 grid', () {
+      expect(provider.grid.length, 9);
+      expect(provider.grid[0].length, 7);
     });
 
-    test('handleTap with single tile does nothing', () async {
-      // Set 8,0 to RED. Neighbors to BLUE.
-      provider.grid[8][0] = Tile(id: 'r1', type: TileType.red, row: 8, col: 0);
-      provider.grid[8][1] = Tile(id: 'b1', type: TileType.blue, row: 8, col: 1);
-      provider.grid[7][0] = Tile(id: 'b2', type: TileType.blue, row: 7, col: 0);
+    test('handleSwap reverts if no match', () async {
+      // 0,0 is Sword (0+0 even). 0,1 is Shield (0+1 odd).
+      // 0,2 is Sword.
+      // Swap 0,0 and 0,1.
+      // 0,0 becomes Shield. 0,1 becomes Sword.
+      // Row 0: Shield, Sword, Sword. No match.
+      // Col 0: Shield, Shield(1,0), Sword(2,0)...
+      // 1,0 is Shield (1+0 odd).
+      // So 0,0 (Shield) matches 1,0 (Shield). Need to check 2,0.
+      // 2,0 is Sword.
+      // So no match.
 
-      final originalId = provider.grid[8][0].id;
+      final id1 = provider.grid[0][0].id;
+      final id2 = provider.grid[0][1].id;
 
-      await provider.handleTap(8, 0);
+      await provider.handleSwap(0, 0, Direction.right);
 
-      expect(provider.score, 0);
-      expect(provider.grid[8][0].id, originalId);
-      expect(provider.grid[8][0].type, TileType.red);
+      // Should revert
+      expect(provider.grid[0][0].id, id1);
+      expect(provider.grid[0][1].id, id2);
+    });
+
+    test('handleSwap matches 3 and processes', () async {
+      // Setup row 0 to be Sword, Sword, Shield, Sword
+      // 0,0: Sword (default)
+      // 0,1: Shield (default) -> Change to Sword
+      provider.grid[0][1] = Tile(id: 's2', type: TileType.sword, row: 0, col: 1);
+      // 0,2: Sword (default) -> Change to Shield
+      provider.grid[0][2] = Tile(id: 'sh1', type: TileType.shield, row: 0, col: 2);
+      // 0,3: Shield (default) -> Change to Sword
+      provider.grid[0][3] = Tile(id: 's3', type: TileType.sword, row: 0, col: 3);
+
+      // Now: Sword, Sword, Shield, Sword.
+      // Swap 0,2 and 0,3 -> Sword, Sword, Sword, Shield.
+      // Match 3 at 0,0..0,2.
+
+      await provider.handleSwap(0, 2, Direction.right);
+
+      expect(provider.score, greaterThan(0));
     });
   });
 }
