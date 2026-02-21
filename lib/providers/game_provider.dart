@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import '../models/tile.dart';
 import '../models/monster.dart';
 
+enum Direction { up, down, left, right }
+
 abstract class GameEvent {}
 
 class ScoreEvent extends GameEvent {
@@ -24,6 +26,8 @@ class BombEvent extends GameEvent {
   BombEvent(this.row, this.col);
 }
 
+class ShakeEvent extends GameEvent {}
+
 class GameProvider with ChangeNotifier {
   static const int rows = 9;
   static const int cols = 7;
@@ -31,6 +35,7 @@ class GameProvider with ChangeNotifier {
   List<List<Tile>> _grid = [];
   int _score = 0;
   bool _isProcessing = false;
+  int _comboCount = 0;
 
   late Monster _monster;
   int _level = 1;
@@ -41,6 +46,7 @@ class GameProvider with ChangeNotifier {
   List<List<Tile>> get grid => _grid;
   int get score => _score;
   bool get isProcessing => _isProcessing;
+  int get comboCount => _comboCount;
   Monster get monster => _monster;
   int get level => _level;
 
@@ -75,22 +81,18 @@ class GameProvider with ChangeNotifier {
   }
 
   void generateGrid() {
-    // Keep score and level state?
-    // If we call generateGrid manually (refresh), should we reset monster?
-    // The current UI calls generateGrid on refresh button.
-    // Let's assume refresh button resets the level state for now or just the grid.
-    // Ideally, "Restart Level" resets grid and monster.
-
     _grid = List.generate(rows, (r) {
       return List.generate(cols, (c) {
         return _createRandomTile(r, c);
       });
     });
+    // TODO: Ensure no matches on start
     notifyListeners();
   }
 
   Tile _createRandomTile(int row, int col) {
-    final types = TileType.values.where((t) => t != TileType.empty).toList();
+    // Exclude empty and bomb from random generation
+    final types = TileType.values.where((t) => t != TileType.empty && t != TileType.bomb).toList();
     final type = types[_random.nextInt(types.length)];
     return Tile(
       id: '${DateTime.now().microsecondsSinceEpoch}_${_random.nextInt(100000)}',
@@ -100,132 +102,261 @@ class GameProvider with ChangeNotifier {
     );
   }
 
-  Future<void> handleTap(int row, int col) async {
+  Future<void> handleSwap(int row, int col, Direction direction) async {
     if (_isProcessing) return;
-    if (row < 0 || row >= rows || col < 0 || col >= cols) return;
 
-    final tile = _grid[row][col];
-    if (tile.type == TileType.empty) return;
+    _comboCount = 0; // Reset combo on new move
 
-    List<Tile> tilesToRemove = [];
-    bool createdBomb = false;
+    int newRow = row;
+    int newCol = col;
 
-    if (tile.isBomb) {
-      tilesToRemove = _getBombRadius(row, col);
+    switch (direction) {
+      case Direction.up: newRow--; break;
+      case Direction.down: newRow++; break;
+      case Direction.left: newCol--; break;
+      case Direction.right: newCol++; break;
+    }
+
+    // Bounds check
+    if (newRow < 0 || newRow >= rows || newCol < 0 || newCol >= cols) return;
+
+    final tileA = _grid[row][col];
+    final tileB = _grid[newRow][newCol];
+
+    if (tileA.type == TileType.empty || tileB.type == TileType.empty) return;
+
+    _isProcessing = true;
+
+    // 1. Swap
+    _swapTiles(row, col, newRow, newCol);
+    notifyListeners();
+
+    // 2. Animate Swap
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    // Check for Bomb interaction
+    bool isBombInteraction = tileA.type == TileType.bomb || tileB.type == TileType.bomb;
+
+    if (isBombInteraction) {
+       if (tileA.type == TileType.bomb) await _triggerBomb(tileA);
+       // Check tileB type again in case tileA explosion removed it (unlikely if strictly adjacent but possible in logic)
+       // Since we just swapped, they are adjacent.
+       // We'll just trigger tileB if it's a bomb and still exists (not empty)
+       // Wait. tileA was at row,col. tileB was at newRow,newCol.
+       // After swap: tileA is at newRow,newCol. tileB is at row,col.
+
+       // So we check positions:
+       final t1 = _grid[newRow][newCol]; // This is where tileA is
+       final t2 = _grid[row][col];       // This is where tileB is
+
+       if (t1.type == TileType.bomb) await _triggerBomb(t1);
+       if (t2.type == TileType.bomb) await _triggerBomb(t2);
+
+       await _processBoard();
     } else {
-      tilesToRemove = _findConnected(row, col, tile.type);
+      // Normal Match Check
+      final matches = _checkMatches();
+
+      if (matches.isNotEmpty) {
+         await _processBoard();
+      } else {
+        // Revert
+        _swapTiles(row, col, newRow, newCol);
+        notifyListeners();
+        await Future.delayed(const Duration(milliseconds: 300)); // Animate back
+      }
     }
 
-    if (tilesToRemove.length >= 2 || tile.isBomb) {
-        _isProcessing = true;
-        notifyListeners();
-
-        if (!tile.isBomb && tilesToRemove.length >= 5) {
-          createdBomb = true;
-        }
-
-        // Emit events
-        int damage = tilesToRemove.length;
-        int points = damage * 10;
-
-        _eventController.add(ScoreEvent(points, row, col));
-        _eventController.add(DamageEvent(damage));
-        if (tile.isBomb) {
-           _eventController.add(BombEvent(row, col));
-        }
-
-        // Remove tiles
-        _removeTiles(tilesToRemove);
-
-        if (createdBomb) {
-           // Create bomb at tapped location
-           _grid[row][col] = Tile(
-             id: 'bomb_${DateTime.now().microsecondsSinceEpoch}',
-             type: tile.type,
-             row: row,
-             col: col,
-             isBomb: true,
-           );
-        }
-
-        _score += points;
-
-        // Apply damage to monster
-        _monster.currentHp -= damage;
-        if (_monster.currentHp < 0) _monster.currentHp = 0;
-
-        notifyListeners();
-
-        await Future.delayed(const Duration(milliseconds: 350));
-
-        // Apply gravity
-        _applyGravity();
-        notifyListeners();
-
-        await Future.delayed(const Duration(milliseconds: 350));
-
-        // Refill
-        _refill();
-        notifyListeners();
-
-        _isProcessing = false;
-    }
+    _isProcessing = false;
   }
 
-  List<Tile> _getBombRadius(int row, int col) {
-    List<Tile> result = [];
-    for (int r = row - 1; r <= row + 1; r++) {
-      for (int c = col - 1; c <= col + 1; c++) {
-        if (r >= 0 && r < rows && c >= 0 && c < cols) {
-          if (_grid[r][c].type != TileType.empty) {
-             result.add(_grid[r][c]);
+  void _swapTiles(int r1, int c1, int r2, int c2) {
+    final temp = _grid[r1][c1];
+    _grid[r1][c1] = _grid[r2][c2];
+    _grid[r2][c2] = temp;
+
+    // Update coordinates
+    _grid[r1][c1].row = r1;
+    _grid[r1][c1].col = c1;
+    _grid[r2][c2].row = r2;
+    _grid[r2][c2].col = c2;
+  }
+
+  List<List<Tile>> _checkMatches() {
+    Set<Tile> matchedTiles = {};
+
+    // Horizontal
+    for (int r = 0; r < rows; r++) {
+      for (int c = 0; c < cols - 2; c++) {
+        final t1 = _grid[r][c];
+        final t2 = _grid[r][c+1];
+        final t3 = _grid[r][c+2];
+        if (t1.type != TileType.empty && t1.type != TileType.bomb &&
+            t1.type == t2.type && t1.type == t3.type) {
+          matchedTiles.add(t1);
+          matchedTiles.add(t2);
+          matchedTiles.add(t3);
+        }
+      }
+    }
+
+    // Vertical
+    for (int c = 0; c < cols; c++) {
+      for (int r = 0; r < rows - 2; r++) {
+        final t1 = _grid[r][c];
+        final t2 = _grid[r+1][c];
+        final t3 = _grid[r+2][c];
+        if (t1.type != TileType.empty && t1.type != TileType.bomb &&
+            t1.type == t2.type && t1.type == t3.type) {
+          matchedTiles.add(t1);
+          matchedTiles.add(t2);
+          matchedTiles.add(t3);
+        }
+      }
+    }
+
+    return _findClusters(matchedTiles);
+  }
+
+  List<List<Tile>> _findClusters(Set<Tile> matchedTiles) {
+    List<List<Tile>> clusters = [];
+    Set<Tile> visited = {};
+
+    for (var tile in matchedTiles) {
+      if (!visited.contains(tile)) {
+        List<Tile> cluster = [];
+        List<Tile> queue = [tile];
+        visited.add(tile);
+
+        while (queue.isNotEmpty) {
+          final current = queue.removeAt(0);
+          cluster.add(current);
+
+          final directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+          for (var dir in directions) {
+            final nr = current.row + dir[0];
+            final nc = current.col + dir[1];
+            if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+              final neighbor = _grid[nr][nc];
+              if (matchedTiles.contains(neighbor) && !visited.contains(neighbor) && neighbor.type == current.type) {
+                visited.add(neighbor);
+                queue.add(neighbor);
+              }
+            }
           }
         }
+        clusters.add(cluster);
       }
     }
-    return result;
+    return clusters;
   }
 
-  List<Tile> _findConnected(int startRow, int startCol, TileType type) {
-    List<Tile> result = [];
-    Set<String> visited = {};
-    List<Tile> queue = [_grid[startRow][startCol]];
-    visited.add('$startRow,$startCol');
+  Future<void> _processBoard() async {
+    while (true) {
+      final clusters = _checkMatches();
+      if (clusters.isEmpty) break;
 
-    while (queue.isNotEmpty) {
-      final current = queue.removeAt(0);
-      result.add(current);
+      _comboCount++;
+      if (_comboCount > 1) {
+         _eventController.add(ShakeEvent());
+      }
 
-      final directions = [
-        [-1, 0], [1, 0], [0, -1], [0, 1]
-      ];
+      await _processMatches(clusters);
 
-      for (var dir in directions) {
-        final newRow = current.row + dir[0];
-        final newCol = current.col + dir[1];
+      await Future.delayed(const Duration(milliseconds: 300));
+      _applyGravity();
+      notifyListeners();
 
-        if (newRow >= 0 && newRow < rows && newCol >= 0 && newCol < cols) {
-           final neighbor = _grid[newRow][newCol];
-           // Check if neighbor is of same type and not visited
-           if (!visited.contains('$newRow,$newCol') && neighbor.type == type) {
-             visited.add('$newRow,$newCol');
-             queue.add(neighbor);
-           }
+      await Future.delayed(const Duration(milliseconds: 300));
+      _refill();
+      notifyListeners();
+
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+  }
+
+  Future<void> _processMatches(List<List<Tile>> matchClusters) async {
+    for (var cluster in matchClusters) {
+      if (cluster.isEmpty) continue;
+
+      int multiplier = _comboCount > 0 ? _comboCount : 1;
+      int points = cluster.length * 10 * multiplier;
+      int damage = cluster.length * multiplier; // Damage also scales? Or flat? Let's scale it slightly or keep flat. User said "Damage based on match size". Combo usually scales score.
+      // "Add combo multiplier system". Usually implies score.
+      // But "Damage monster based on match size".
+      // I'll scale score by combo. Damage flat by size.
+
+      final center = cluster[cluster.length ~/ 2];
+      _eventController.add(ScoreEvent(points, center.row, center.col));
+      _eventController.add(DamageEvent(damage));
+
+      _score += points;
+      _monster.currentHp -= damage;
+      if (_monster.currentHp < 0) _monster.currentHp = 0;
+
+      // Determine bomb creation
+      Tile? bombTarget;
+      if (cluster.length >= 5) {
+         bombTarget = center;
+      }
+
+      for (var tile in cluster) {
+         if (bombTarget != null && tile == bombTarget) {
+            _grid[tile.row][tile.col] = Tile(
+              id: 'bomb_${DateTime.now().microsecondsSinceEpoch}',
+              type: TileType.bomb,
+              row: tile.row,
+              col: tile.col,
+            );
+            _eventController.add(BombEvent(tile.row, tile.col)); // Visual effect
+         } else {
+            _grid[tile.row][tile.col] = Tile(
+              id: 'empty_${tile.row}_${tile.col}_${_random.nextInt(1000)}',
+              type: TileType.empty,
+              row: tile.row,
+              col: tile.col
+            );
+         }
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> _triggerBomb(Tile bomb) async {
+     List<Tile> tilesToRemove = [];
+     for (int r = bomb.row - 1; r <= bomb.row + 1; r++) {
+       for (int c = bomb.col - 1; c <= bomb.col + 1; c++) {
+         if (r >= 0 && r < rows && c >= 0 && c < cols) {
+             tilesToRemove.add(_grid[r][c]);
+         }
+       }
+     }
+
+     int count = 0;
+     for (var t in tilesToRemove) {
+        if (t.type != TileType.empty) {
+          count++;
+          _grid[t.row][t.col] = Tile(
+             id: 'empty_${t.row}_${t.col}_${_random.nextInt(1000)}',
+             type: TileType.empty,
+             row: t.row,
+             col: t.col
+          );
         }
-      }
-    }
-    return result;
-  }
+     }
 
-  void _removeTiles(List<Tile> tiles) {
-    for (var tile in tiles) {
-       _grid[tile.row][tile.col] = Tile(
-         id: 'empty_${tile.row}_${tile.col}_${_random.nextInt(1000)}',
-         type: TileType.empty,
-         row: tile.row,
-         col: tile.col
-       );
-    }
+     if (count > 0) {
+       int points = count * 10;
+       _eventController.add(ScoreEvent(points, bomb.row, bomb.col));
+       _eventController.add(DamageEvent(count));
+       _eventController.add(BombEvent(bomb.row, bomb.col));
+       _eventController.add(ShakeEvent());
+
+       _score += points;
+       _monster.currentHp -= count;
+       if (_monster.currentHp < 0) _monster.currentHp = 0;
+       notifyListeners();
+     }
   }
 
   void _applyGravity() {

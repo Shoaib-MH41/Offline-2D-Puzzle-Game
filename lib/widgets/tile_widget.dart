@@ -1,126 +1,117 @@
 import 'package:flutter/material.dart';
 import '../models/tile.dart';
 
-class TileWidget extends StatefulWidget {
+class TileWidget extends StatelessWidget {
   final Tile tile;
   final double size;
-  final VoidCallback onTap;
 
   const TileWidget({
     super.key,
     required this.tile,
     required this.size,
-    required this.onTap,
   });
 
   @override
-  State<TileWidget> createState() => _TileWidgetState();
-}
-
-class _TileWidgetState extends State<TileWidget> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 100),
-    );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.9).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut)
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _handleTap() {
-    _controller.forward().then((_) {
-      _controller.reverse();
-      widget.onTap();
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (widget.tile.type == TileType.empty) return const SizedBox.shrink();
+    if (tile.type == TileType.empty) return const SizedBox.shrink();
 
-    return GestureDetector(
-      onTap: _handleTap,
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: Container(
-          width: widget.size,
-          height: widget.size,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: _getGradientColors(widget.tile.type),
-            ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-               BoxShadow(
-                 color: _getColor(widget.tile.type).withValues(alpha: 0.5),
-                 blurRadius: 6,
-                 offset: const Offset(2, 4),
-               ),
-               if (widget.tile.isBomb)
-                  const BoxShadow(
-                    color: Colors.white,
-                    blurRadius: 10,
-                    spreadRadius: 2,
-                  )
-            ],
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.4),
-              width: 1.5
-            ),
-          ),
-          child: Center(
-            child: widget.tile.isBomb
-              ? Icon(Icons.bolt, color: Colors.white, size: widget.size * 0.6)
-              : _getIcon(widget.tile.type, widget.size),
-          ),
+    final isBomb = tile.isBomb || tile.type == TileType.bomb;
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: _getGradientColors(tile.type),
         ),
+        borderRadius: BorderRadius.circular(size * 0.2), // Rounded
+        boxShadow: [
+           BoxShadow(
+             color: _getColor(tile.type).withValues(alpha: 0.5),
+             blurRadius: 4,
+             offset: const Offset(0, 4),
+           ),
+           if (isBomb)
+              BoxShadow(
+                color: Colors.orangeAccent.withValues(alpha: 0.6),
+                blurRadius: 12,
+                spreadRadius: 2,
+              )
+        ],
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.3),
+          width: 1.5
+        ),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Subtle inner glow/pattern
+          Container(
+             decoration: BoxDecoration(
+               shape: BoxShape.circle,
+               color: Colors.white.withValues(alpha: 0.1),
+             ),
+             width: size * 0.8,
+             height: size * 0.8,
+          ),
+          _getIcon(tile.type, size),
+        ],
       ),
     );
   }
 
   List<Color> _getGradientColors(TileType type) {
     Color base = _getColor(type);
-    return [
-      base,
-      Color.lerp(base, Colors.black, 0.3)!,
-    ];
+    Color dark = Color.lerp(base, Colors.black, 0.4)!;
+    Color light = Color.lerp(base, Colors.white, 0.2)!;
+
+    // Reverse gradient for depth
+    return [light, base, dark];
   }
 
   Color _getColor(TileType type) {
     switch (type) {
-      case TileType.red: return Colors.redAccent;
-      case TileType.blue: return Colors.blueAccent;
-      case TileType.green: return Colors.green;
-      case TileType.yellow: return Colors.amber;
-      case TileType.purple: return Colors.deepPurpleAccent;
+      case TileType.sword: return const Color(0xFFE57373); // Red
+      case TileType.shield: return const Color(0xFF64B5F6); // Blue
+      case TileType.crystal: return const Color(0xFFBA68C8); // Purple
+      case TileType.heart: return const Color(0xFF81C784); // Green
+      case TileType.bomb: return const Color(0xFF424242); // Dark/Black
       case TileType.empty: return Colors.transparent;
     }
   }
 
-  Widget? _getIcon(TileType type, double size) {
-    IconData? icon;
+  Widget _getIcon(TileType type, double size) {
+    IconData icon;
+    double iconSize = size * 0.6;
+    Color color = Colors.white.withValues(alpha: 0.95);
+
     switch (type) {
-      case TileType.red: icon = Icons.favorite; break;
-      case TileType.blue: icon = Icons.water_drop; break;
-      case TileType.green: icon = Icons.eco; break;
-      case TileType.yellow: icon = Icons.star; break;
-      case TileType.purple: icon = Icons.diamond; break;
-      case TileType.empty: return null;
+      case TileType.sword:
+        icon = Icons.colorize;
+        return Transform.rotate(
+          angle: 3.14 / 4, // 45 degrees
+          child: Icon(icon, color: color, size: iconSize),
+        );
+      case TileType.shield:
+        icon = Icons.shield;
+        break;
+      case TileType.crystal:
+        icon = Icons.diamond;
+        break;
+      case TileType.heart:
+        icon = Icons.favorite;
+        break;
+      case TileType.bomb:
+        icon = Icons.whatshot;
+        color = Colors.orangeAccent;
+        break;
+      case TileType.empty:
+        return const SizedBox.shrink();
     }
-    return Icon(icon, color: Colors.white.withValues(alpha: 0.8), size: size * 0.5);
+
+    return Icon(icon, color: color, size: iconSize);
   }
 }

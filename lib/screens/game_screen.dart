@@ -74,6 +74,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           _effects.add(ScorePopupData(event.score, event.row, event.col));
         });
      } else if (event is DamageEvent) {
+        // Small shake on damage? Or rely on ShakeEvent for big hits?
+        // Let's keep small shake for damage feedback
+        _shakeController.animateTo(0.5, curve: Curves.easeIn).then((_) => _shakeController.reverse());
+     } else if (event is ShakeEvent) {
+        // Big shake for combos
         _shakeController.forward(from: 0).then((_) => _shakeController.reverse());
      } else if (event is BombEvent) {
         setState(() {
@@ -346,11 +351,11 @@ class _ScorePopupWidgetState extends State<ScorePopupWidget> with SingleTickerPr
         child: Center(
           child: Text(
             '+${widget.data.score}',
-            style: const TextStyle(
-              color: Colors.amberAccent,
-              fontSize: 24,
+            style: TextStyle(
+              color: widget.data.score >= 50 ? Colors.purpleAccent : (widget.data.score >= 40 ? Colors.redAccent : Colors.amberAccent),
+              fontSize: widget.data.score >= 40 ? 32 : 24,
               fontWeight: FontWeight.bold,
-              shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+              shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
             ),
           ),
         ),
