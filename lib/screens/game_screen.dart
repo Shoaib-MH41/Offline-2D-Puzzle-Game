@@ -98,7 +98,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   void _onGameUpdate() {
     if (!mounted) return;
-    if (_gameProvider.monster.currentHp <= 0 && !_isDialogShowing) {
+    if (_isDialogShowing) return;
+
+    if (_gameProvider.monster.currentHp <= 0) {
        _isDialogShowing = true;
        showDialog(
          context: context,
@@ -122,6 +124,34 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                  _gameProvider.startNextLevel();
                },
                child: const Text("Next Level", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+             )
+           ],
+         ),
+       );
+    } else if (_gameProvider.movesLeft <= 0) {
+       _isDialogShowing = true;
+       showDialog(
+         context: context,
+         barrierDismissible: false,
+         builder: (ctx) => AlertDialog(
+           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+           title: const Text("Level Failed", textAlign: TextAlign.center),
+           content: Column(
+             mainAxisSize: MainAxisSize.min,
+             children: [
+               const Icon(Icons.sentiment_very_dissatisfied, color: Colors.redAccent, size: 60),
+               const SizedBox(height: 16),
+               const Text("Out of moves! The monster survived.", textAlign: TextAlign.center),
+             ],
+           ),
+           actions: [
+             TextButton(
+               onPressed: () {
+                 _isDialogShowing = false;
+                 Navigator.pop(ctx);
+                 _gameProvider.restartLevel();
+               },
+               child: const Text("Try Again", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
              )
            ],
          ),

@@ -58,6 +58,18 @@ class TileWidget extends StatelessWidget {
              height: size * 0.8,
           ),
           _getIcon(tile.type, size),
+          if (tile.type == TileType.stone && tile.hp == 1)
+             Icon(Icons.broken_image, color: Colors.black.withValues(alpha: 0.4), size: size * 0.5),
+          if (tile.isLocked)
+             Container(
+               decoration: BoxDecoration(
+                 color: Colors.black.withValues(alpha: 0.6),
+                 borderRadius: BorderRadius.circular(size * 0.2),
+               ),
+               child: Center(
+                 child: Icon(Icons.lock, color: Colors.white, size: size * 0.5),
+               ),
+             ),
         ],
       ),
     );
@@ -79,6 +91,9 @@ class TileWidget extends StatelessWidget {
       case TileType.crystal: return const Color(0xFFBA68C8); // Purple
       case TileType.heart: return const Color(0xFF81C784); // Green
       case TileType.bomb: return const Color(0xFF424242); // Dark/Black
+      case TileType.stone: return const Color(0xFF757575); // Grey
+      case TileType.ice: return const Color(0xFF4DD0E1); // Cyan
+      case TileType.poison: return const Color(0xFF66BB6A); // Green Poison
       case TileType.empty: return Colors.transparent;
     }
   }
@@ -107,6 +122,16 @@ class TileWidget extends StatelessWidget {
       case TileType.bomb:
         icon = Icons.whatshot;
         color = Colors.orangeAccent;
+        break;
+      case TileType.stone:
+        icon = Icons.landscape;
+        break;
+      case TileType.ice:
+        icon = Icons.ac_unit;
+        break;
+      case TileType.poison:
+        icon = Icons.dangerous;
+        color = Colors.purpleAccent;
         break;
       case TileType.empty:
         return const SizedBox.shrink();
