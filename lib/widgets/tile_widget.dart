@@ -84,7 +84,15 @@ class TileWidget extends StatelessWidget {
                  borderRadius: BorderRadius.circular(size * 0.2),
                ),
                child: Center(
-                 child: Icon(Icons.lock, color: Colors.white, size: size * 0.5),
+                 child: tile.hp < 2
+                    ? Stack(
+                        alignment: Alignment.center,
+                        children: [
+                           Icon(Icons.lock, color: Colors.white70, size: size * 0.5),
+                           Icon(Icons.broken_image, color: Colors.white, size: size * 0.3),
+                        ],
+                      )
+                    : Icon(Icons.lock, color: Colors.white, size: size * 0.5),
                ),
              ),
         ],
@@ -114,6 +122,8 @@ class TileWidget extends StatelessWidget {
       case TileType.key: return const Color(0xFFFFD54F); // Amber Key
       case TileType.timedBomb: return const Color(0xFF212121); // Black Bomb
       case TileType.power: return const Color(0xFFFFEE58); // Yellow Power
+      case TileType.rocket: return const Color(0xFFE91E63); // Pink Rocket
+      case TileType.lamp: return const Color(0xFF9C27B0); // Purple Lamp
       case TileType.empty: return Colors.transparent;
     }
   }
@@ -163,6 +173,14 @@ class TileWidget extends StatelessWidget {
       case TileType.power:
         icon = Icons.flash_on;
         color = Colors.redAccent;
+        break;
+      case TileType.rocket:
+        icon = Icons.rocket_launch;
+        color = Colors.white;
+        break;
+      case TileType.lamp:
+        icon = Icons.lightbulb; // Or a better lamp icon if available
+        color = Colors.yellowAccent;
         break;
       case TileType.empty:
         return const SizedBox.shrink();

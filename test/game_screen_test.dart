@@ -4,9 +4,24 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:puzzle_game/providers/game_provider.dart';
 import 'package:puzzle_game/services/storage_service.dart';
+import 'package:puzzle_game/services/level_service.dart';
+import 'package:puzzle_game/models/level_config.dart';
 import 'package:puzzle_game/screens/game_screen.dart';
 import 'package:puzzle_game/widgets/board_widget.dart';
 import 'package:puzzle_game/widgets/tile_widget.dart';
+
+class MockLevelService extends LevelService {
+  @override
+  LevelConfig getLevel(int level) {
+    return LevelConfig(
+      levelNumber: level,
+      mode: GameMode.battle,
+      maxMoves: 20,
+      worldIndex: 0,
+      targetScore: 1000,
+    );
+  }
+}
 
 void main() {
   setUp(() {
@@ -17,7 +32,8 @@ void main() {
     await tester.pumpWidget(
       MultiProvider(
         providers: [
-          ChangeNotifierProvider(create: (_) => GameProvider()),
+          Provider<LevelService>(create: (_) => MockLevelService()),
+          ChangeNotifierProvider(create: (_) => GameProvider(MockLevelService())),
           Provider(create: (_) => StorageService()),
         ],
         child: const MaterialApp(

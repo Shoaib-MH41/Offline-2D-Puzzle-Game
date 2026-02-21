@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/storage_service.dart';
+import '../services/level_service.dart';
 import '../providers/game_provider.dart';
+import '../models/level_config.dart';
 import 'game_screen.dart';
 
 class WorldMapScreen extends StatefulWidget {
@@ -13,6 +15,7 @@ class WorldMapScreen extends StatefulWidget {
 
 class _WorldMapScreenState extends State<WorldMapScreen> {
   int _highestLevel = 1;
+  Map<int, int> _stars = {};
 
   @override
   void initState() {
@@ -23,13 +26,21 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
   Future<void> _loadProgress() async {
     final storage = context.read<StorageService>();
     final level = await storage.getHighestLevel();
+    Map<int, int> stars = {};
+    for(int i=1; i<=level; i++) {
+       stars[i] = await storage.getLevelStars(i);
+    }
+
     setState(() {
       _highestLevel = level;
+      _stars = stars;
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final levelService = context.read<LevelService>();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("World Map", style: TextStyle(color: Colors.white)),
@@ -44,7 +55,8 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
           itemBuilder: (context, index) {
             final level = index + 1;
             final isLocked = level > _highestLevel;
-            final worldIndex = (level - 1) ~/ 10;
+            final config = levelService.getLevel(level);
+            final worldIndex = config.worldIndex;
 
             Widget? header;
             if ((level - 1) % 10 == 0) {
@@ -65,28 +77,49 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
                );
             }
 
-            // Determine if rescue (Logic from levels_data: levels 2, 7, 12, 17...)
-            bool isRescue = (level % 5 == 2);
             bool isBoss = (level % 10 == 0);
+            int starCount = _stars[level] ?? 0;
 
             final card = Card(
               color: isLocked ? Colors.grey[700] : Colors.amber[100],
               margin: const EdgeInsets.symmetric(vertical: 4),
               child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: isLocked ? Colors.grey : (isBoss ? Colors.red : (isRescue ? Colors.blue : Colors.orange)),
-                  child: Icon(
-                    isLocked ? Icons.lock : (isBoss ? Icons.whatshot : (isRescue ? Icons.person : Icons.colorize)),
-                    color: Colors.white,
-                    size: 20,
-                  ),
+                leading: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: isLocked ? Colors.grey : (isBoss ? Colors.red : (config.mode == GameMode.rescue ? Colors.blue : Colors.orange)),
+                      child: Icon(
+                        isLocked ? Icons.lock : (isBoss ? Icons.whatshot : (config.mode == GameMode.rescue ? Icons.person : Icons.colorize)),
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    if (level == _highestLevel && !isLocked)
+                       Transform.translate(offset: const Offset(12, 12), child: const Icon(Icons.star, color: Colors.yellow, size: 16)), // Hero marker?
+                  ],
                 ),
                 title: Text(
                   isLocked ? "Locked" : (isBoss ? "BOSS BATTLE" : "Level $level"),
                   style: TextStyle(color: isLocked ? Colors.white54 : Colors.black, fontWeight: isLocked ? FontWeight.normal : FontWeight.bold)
                 ),
-                subtitle: isLocked ? null : Text(isRescue ? "Rescue Mode" : "Battle Mode"),
-                trailing: isLocked ? const Icon(Icons.lock, color: Colors.white54) : const Icon(Icons.play_arrow, color: Colors.orange),
+                subtitle: isLocked ? null : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(config.mode == GameMode.rescue ? "Rescue Mode" : "Battle Mode"),
+                    if (starCount > 0)
+                      Row(
+                        children: List.generate(3, (i) => Icon(
+                           Icons.star,
+                           size: 14,
+                           color: i < starCount ? Colors.amber : Colors.grey
+                        )),
+                      )
+                  ],
+                ),
+                trailing: isLocked
+                   ? const Icon(Icons.lock, color: Colors.white54)
+                   : (level == _highestLevel ? const Icon(Icons.location_pin, color: Colors.redAccent) : const Icon(Icons.check_circle, color: Colors.green)),
                 onTap: isLocked ? null : () => _playLevel(level),
               ),
             );

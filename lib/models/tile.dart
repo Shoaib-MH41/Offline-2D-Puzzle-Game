@@ -11,6 +11,8 @@ enum TileType {
   key,
   timedBomb,
   power,
+  rocket,
+  lamp,
 }
 
 class Tile {
@@ -39,6 +41,8 @@ class Tile {
   bool get isBomb => type == TileType.bomb;
   bool get isPower => type == TileType.power;
   bool get isTimedBomb => type == TileType.timedBomb;
+  bool get isRocket => type == TileType.rocket;
+  bool get isLamp => type == TileType.lamp;
 
   @override
   String toString() => 'Tile(id: $id, type: $type, row: $row, col: $col, hp: $hp, locked: $isLocked)';

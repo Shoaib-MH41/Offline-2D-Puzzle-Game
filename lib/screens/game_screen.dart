@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import '../providers/game_provider.dart';
 import '../widgets/board_widget.dart';
 import '../widgets/adventure_scene.dart';
-import '../widgets/rescue_widget.dart';
+import '../widgets/rescue_scene.dart';
 import '../services/storage_service.dart';
 import '../models/level_config.dart';
 
@@ -220,7 +220,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                         child: Transform.translate(
                           offset: Offset(shake, 0),
                           child: _gameProvider.mode == GameMode.rescue
-                              ? const RescueWidget()
+                              ? const RescueScene()
                               : const AdventureScene(),
                         ),
                       ),
@@ -290,7 +290,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 ),
               ),
             ),
-            ?_overlayWidget,
+            if (_overlayWidget != null) _overlayWidget!,
           ],
         ),
     );
