@@ -12,14 +12,16 @@ class Tile {
   TileType type;
   int row;
   int col;
+  bool isBomb;
 
   Tile({
     required this.id,
     required this.type,
     required this.row,
     required this.col,
+    this.isBomb = false,
   });
 
   @override
-  String toString() => 'Tile(id: $id, type: $type, row: $row, col: $col)';
+  String toString() => 'Tile(id: $id, type: $type, row: $row, col: $col, isBomb: $isBomb)';
 }

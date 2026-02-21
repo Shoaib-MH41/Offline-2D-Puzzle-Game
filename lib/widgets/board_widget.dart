@@ -21,7 +21,7 @@ class BoardWidget extends StatelessWidget {
             final double tileHeight = availableHeight / GameProvider.rows;
             // Use the smaller dimension to keep tiles square
             final double size = tileWidth < tileHeight ? tileWidth : tileHeight;
-            final double tileSize = size * 0.95; // Add a small gap by reducing size slightly
+            final double tileSize = size * 0.88; // Proper gap for shadows
 
             // Center the grid
             final double offsetX = (availableWidth - (size * GameProvider.cols)) / 2;
@@ -54,6 +54,7 @@ class BoardWidget extends StatelessWidget {
             }
 
             return Stack(
+              clipBehavior: Clip.none,
               children: tileWidgets,
             );
           },
