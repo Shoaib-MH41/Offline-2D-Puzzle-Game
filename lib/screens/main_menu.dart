@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/storage_service.dart';
-import 'game_screen.dart';
+import 'world_map_screen.dart';
 
 class MainMenu extends StatefulWidget {
   const MainMenu({super.key});
@@ -33,7 +33,7 @@ class _MainMenuState extends State<MainMenu> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF141E30), Color(0xFF243B55)], // Dark Blue Gradient
+            colors: [Color(0xFF141E30), Color(0xFF243B55)],
           ),
         ),
         child: Center(
@@ -83,23 +83,10 @@ class _MainMenuState extends State<MainMenu> {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const GameScreen()),
+                    MaterialPageRoute(builder: (context) => const WorldMapScreen()),
                   ).then((_) {
                     _refreshHighScore();
                   });
-                },
-              ),
-              const SizedBox(height: 20),
-
-              // Levels Button (Placeholder)
-              _buildButton(
-                label: 'LEVELS',
-                icon: Icons.grid_view,
-                isSecondary: true,
-                onPressed: () {
-                   ScaffoldMessenger.of(context).showSnackBar(
-                     const SnackBar(content: Text('Levels coming soon!')),
-                   );
                 },
               ),
                const SizedBox(height: 20),

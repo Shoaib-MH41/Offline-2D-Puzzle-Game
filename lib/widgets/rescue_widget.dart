@@ -1,0 +1,89 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/game_provider.dart';
+import '../models/rescue_item.dart';
+
+class RescueWidget extends StatelessWidget {
+  const RescueWidget({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final gameProvider = Provider.of<GameProvider>(context);
+    final grid = gameProvider.rescueGrid;
+
+    if (grid.isEmpty) return const SizedBox.shrink();
+
+    return AspectRatio(
+      aspectRatio: 1.0,
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.brown[900],
+          border: Border.all(color: Colors.amber, width: 2),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          children: grid.asMap().entries.map((entry) {
+            int r = entry.key;
+            List<RescueItem> row = entry.value;
+            return Expanded(
+              child: Row(
+                children: row.asMap().entries.map((e) {
+                  int c = e.key;
+                  RescueItem item = e.value;
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () => gameProvider.triggerPin(r, c),
+                      child: Container(
+                        margin: const EdgeInsets.all(1),
+                        decoration: BoxDecoration(
+                          color: _getColor(item.type),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.black26),
+                          boxShadow: item.type == RescueType.pin ? [
+                            BoxShadow(color: Colors.black45, offset: Offset(1,1), blurRadius: 2)
+                          ] : null,
+                        ),
+                        child: Center(
+                          child: _getIcon(item.type),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Color _getColor(RescueType type) {
+    switch (type) {
+      case RescueType.hero: return Colors.blueAccent;
+      case RescueType.enemy: return Colors.red[800]!;
+      case RescueType.water: return Colors.blue[300]!;
+      case RescueType.lava: return Colors.orange[800]!;
+      case RescueType.stone: return Colors.grey[700]!;
+      case RescueType.gold: return Colors.amber;
+      case RescueType.pin: return Colors.amber[700]!;
+      case RescueType.exit: return Colors.green[700]!;
+      case RescueType.empty: return Colors.black12;
+    }
+  }
+
+  Widget _getIcon(RescueType type) {
+    switch (type) {
+      case RescueType.hero: return const Icon(Icons.person, color: Colors.white, size: 24);
+      case RescueType.enemy: return const Icon(Icons.bug_report, color: Colors.black, size: 24);
+      case RescueType.water: return const Icon(Icons.water_drop, color: Colors.blueAccent, size: 20);
+      case RescueType.lava: return const Icon(Icons.local_fire_department, color: Colors.yellow, size: 20);
+      case RescueType.stone: return const Icon(Icons.circle, color: Colors.grey, size: 16);
+      case RescueType.gold: return const Icon(Icons.monetization_on, color: Colors.white, size: 20);
+      case RescueType.pin: return const Icon(Icons.lock_open, color: Colors.black, size: 20);
+      case RescueType.exit: return const Icon(Icons.door_back_door, color: Colors.white, size: 24);
+      case RescueType.empty: return const SizedBox.shrink();
+    }
+  }
+}
