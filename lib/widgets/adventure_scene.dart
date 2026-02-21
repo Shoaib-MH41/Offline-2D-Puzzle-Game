@@ -30,14 +30,29 @@ class AdventureScene extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Level ${game.level}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          shadows: [Shadow(color: Colors.black, blurRadius: 4)],
-                        ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Level ${game.level}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Moves: ${game.movesLeft}',
+                            style: TextStyle(
+                              color: game.movesLeft <= 5 ? Colors.redAccent : Colors.lightBlueAccent,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
+                            ),
+                          ),
+                        ],
                       ),
                       Text(
                         'Score: ${game.score}',

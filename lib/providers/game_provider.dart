@@ -40,6 +40,9 @@ class GameProvider with ChangeNotifier {
   late Monster _monster;
   int _level = 1;
 
+  int _movesLeft = 0;
+  int _maxMoves = 0;
+
   final _eventController = StreamController<GameEvent>.broadcast();
   Stream<GameEvent> get events => _eventController.stream;
 
@@ -49,10 +52,17 @@ class GameProvider with ChangeNotifier {
   int get comboCount => _comboCount;
   Monster get monster => _monster;
   int get level => _level;
+  int get movesLeft => _movesLeft;
+  int get maxMoves => _maxMoves;
 
   final Random _random = Random();
 
   GameProvider() {
+    _initLevel();
+    generateGrid();
+  }
+
+  void restartLevel() {
     _initLevel();
     generateGrid();
   }
@@ -64,10 +74,22 @@ class GameProvider with ChangeNotifier {
   }
 
   void _initLevel() {
+    bool isBoss = _level % 10 == 0;
+
+    // Moves Limit: Base 15 + level moves.
+    // Boss levels get more moves because of high HP.
+    _maxMoves = 15 + _level + (isBoss ? 10 : 0);
+    _movesLeft = _maxMoves;
+
     // Simple scaling: +50 HP per level
     int hp = 100 + (_level - 1) * 50;
+
+    if (isBoss) {
+      hp *= 2; // Boss has double HP
+    }
+
     _monster = Monster(
-      name: "Goblin",
+      name: isBoss ? "Boss Level $_level" : "Goblin Lvl $_level",
       maxHp: hp,
       currentHp: hp,
       level: _level,
@@ -81,18 +103,75 @@ class GameProvider with ChangeNotifier {
   }
 
   void generateGrid() {
+    // 1. Generate base grid
     _grid = List.generate(rows, (r) {
       return List.generate(cols, (c) {
         return _createRandomTile(r, c);
       });
     });
+
+    // 2. Place Obstacles based on level
+    _placeObstacles();
+
     // TODO: Ensure no matches on start
     notifyListeners();
   }
 
+  void _placeObstacles() {
+     // Level 1-2: No obstacles
+     if (_level < 3) return;
+
+     int stoneCount = 0;
+     int iceCount = 0;
+
+     // Simple progression
+     if (_level >= 3) stoneCount = 2 + (_level ~/ 5);
+     if (_level >= 5) iceCount = 2 + (_level ~/ 5);
+
+     // Cap obstacles
+     if (stoneCount > 8) stoneCount = 8;
+     if (iceCount > 8) iceCount = 8;
+
+     _placeRandomObstacle(TileType.stone, stoneCount);
+     _placeRandomObstacle(TileType.ice, iceCount);
+  }
+
+  void _placeRandomObstacle(TileType type, int count) {
+      int placed = 0;
+      int attempts = 0;
+      while (placed < count && attempts < 100) {
+          int r = _random.nextInt(rows);
+          int c = _random.nextInt(cols);
+
+          // Don't overwrite existing obstacles
+          if (_grid[r][c].type != TileType.stone &&
+              _grid[r][c].type != TileType.ice &&
+              _grid[r][c].type != TileType.poison &&
+              _grid[r][c].type != TileType.bomb &&
+              _grid[r][c].type != TileType.empty) {
+
+              _grid[r][c] = Tile(
+                  id: 'obstacle_${type}_${r}_$c',
+                  type: type,
+                  row: r,
+                  col: c,
+                  hp: type == TileType.stone ? 2 : 0,
+              );
+              placed++;
+          }
+          attempts++;
+      }
+  }
+
   Tile _createRandomTile(int row, int col) {
-    // Exclude empty and bomb from random generation
-    final types = TileType.values.where((t) => t != TileType.empty && t != TileType.bomb).toList();
+    // Exclude empty, bomb, and obstacles from random generation
+    final types = TileType.values.where((t) =>
+       t != TileType.empty &&
+       t != TileType.bomb &&
+       t != TileType.stone &&
+       t != TileType.ice &&
+       t != TileType.poison
+    ).toList();
     final type = types[_random.nextInt(types.length)];
     return Tile(
       id: '${DateTime.now().microsecondsSinceEpoch}_${_random.nextInt(100000)}',
@@ -104,6 +183,7 @@ class GameProvider with ChangeNotifier {
 
   Future<void> handleSwap(int row, int col, Direction direction) async {
     if (_isProcessing) return;
+    if (_movesLeft <= 0) return;
 
     _comboCount = 0; // Reset combo on new move
 
@@ -124,6 +204,7 @@ class GameProvider with ChangeNotifier {
     final tileB = _grid[newRow][newCol];
 
     if (tileA.type == TileType.empty || tileB.type == TileType.empty) return;
+    if (tileA.isLocked || tileB.isLocked) return;
 
     _isProcessing = true;
 
@@ -136,18 +217,14 @@ class GameProvider with ChangeNotifier {
 
     // Check for Bomb interaction
     bool isBombInteraction = tileA.type == TileType.bomb || tileB.type == TileType.bomb;
+    bool validMove = false;
 
     if (isBombInteraction) {
+       validMove = true;
        if (tileA.type == TileType.bomb) await _triggerBomb(tileA);
-       // Check tileB type again in case tileA explosion removed it (unlikely if strictly adjacent but possible in logic)
-       // Since we just swapped, they are adjacent.
-       // We'll just trigger tileB if it's a bomb and still exists (not empty)
-       // Wait. tileA was at row,col. tileB was at newRow,newCol.
-       // After swap: tileA is at newRow,newCol. tileB is at row,col.
 
-       // So we check positions:
-       final t1 = _grid[newRow][newCol]; // This is where tileA is
-       final t2 = _grid[row][col];       // This is where tileB is
+       final t1 = _grid[newRow][newCol];
+       final t2 = _grid[row][col];
 
        if (t1.type == TileType.bomb) await _triggerBomb(t1);
        if (t2.type == TileType.bomb) await _triggerBomb(t2);
@@ -158,6 +235,7 @@ class GameProvider with ChangeNotifier {
       final matches = _checkMatches();
 
       if (matches.isNotEmpty) {
+         validMove = true;
          await _processBoard();
       } else {
         // Revert
@@ -167,7 +245,72 @@ class GameProvider with ChangeNotifier {
       }
     }
 
+    if (validMove) {
+      _movesLeft--;
+      _unlockAllTiles(); // Clear previous locks
+
+      // Monster Turn
+      _monster.turnsCounter++;
+      if (_monster.turnsCounter >= _monster.abilityCooldown && !_monster.isDead) {
+         _monster.turnsCounter = 0;
+         await _monsterAction();
+      }
+    }
+
     _isProcessing = false;
+    notifyListeners(); // Ensure UI updates (e.g. moves count)
+  }
+
+  void _unlockAllTiles() {
+    for (var r in _grid) {
+      for (var t in r) {
+        t.isLocked = false;
+      }
+    }
+  }
+
+  Future<void> _monsterAction() async {
+    // 3 Abilities: Heal, Lock Row, Poison
+    // Pick random
+    int action = _random.nextInt(3);
+
+    if (action == 0) {
+      // Heal
+      int heal = 50 + (_level * 10);
+      _monster.currentHp += heal;
+      if (_monster.currentHp > _monster.maxHp) _monster.currentHp = _monster.maxHp;
+      // Visual feedback could be added here (e.g. event)
+    } else if (action == 1) {
+      // Lock Random Row
+      int r = _random.nextInt(rows);
+      for (int c = 0; c < cols; c++) {
+         if (_grid[r][c].type != TileType.empty) {
+           _grid[r][c].isLocked = true;
+         }
+      }
+    } else {
+      // Add Poison Tile
+      // Replace a random normal tile
+      int attempts = 0;
+      while (attempts < 20) {
+        int r = _random.nextInt(rows);
+        int c = _random.nextInt(cols);
+        final t = _grid[r][c];
+        if (t.type != TileType.empty && t.type != TileType.bomb &&
+            t.type != TileType.stone && t.type != TileType.ice && t.type != TileType.poison) {
+            _grid[r][c] = Tile(
+              id: 'poison_${DateTime.now().microsecondsSinceEpoch}',
+              type: TileType.poison,
+              row: r,
+              col: c
+            );
+            break;
+        }
+        attempts++;
+      }
+    }
+    notifyListeners();
+    await Future.delayed(const Duration(milliseconds: 500)); // Pause for player to see
   }
 
   void _swapTiles(int r1, int c1, int r2, int c2) {
@@ -185,13 +328,21 @@ class GameProvider with ChangeNotifier {
   List<List<Tile>> _checkMatches() {
     Set<Tile> matchedTiles = {};
 
+    bool canMatch(TileType t) {
+      return t != TileType.empty &&
+             t != TileType.bomb &&
+             t != TileType.stone &&
+             t != TileType.ice &&
+             t != TileType.poison;
+    }
+
     // Horizontal
     for (int r = 0; r < rows; r++) {
       for (int c = 0; c < cols - 2; c++) {
         final t1 = _grid[r][c];
         final t2 = _grid[r][c+1];
         final t3 = _grid[r][c+2];
-        if (t1.type != TileType.empty && t1.type != TileType.bomb &&
+        if (canMatch(t1.type) &&
             t1.type == t2.type && t1.type == t3.type) {
           matchedTiles.add(t1);
           matchedTiles.add(t2);
@@ -206,7 +357,7 @@ class GameProvider with ChangeNotifier {
         final t1 = _grid[r][c];
         final t2 = _grid[r+1][c];
         final t3 = _grid[r+2][c];
-        if (t1.type != TileType.empty && t1.type != TileType.bomb &&
+        if (canMatch(t1.type) &&
             t1.type == t2.type && t1.type == t3.type) {
           matchedTiles.add(t1);
           matchedTiles.add(t2);
@@ -276,15 +427,14 @@ class GameProvider with ChangeNotifier {
   }
 
   Future<void> _processMatches(List<List<Tile>> matchClusters) async {
+    Set<Tile> obstaclesToDamage = {};
+
     for (var cluster in matchClusters) {
       if (cluster.isEmpty) continue;
 
       int multiplier = _comboCount > 0 ? _comboCount : 1;
       int points = cluster.length * 10 * multiplier;
-      int damage = cluster.length * multiplier; // Damage also scales? Or flat? Let's scale it slightly or keep flat. User said "Damage based on match size". Combo usually scales score.
-      // "Add combo multiplier system". Usually implies score.
-      // But "Damage monster based on match size".
-      // I'll scale score by combo. Damage flat by size.
+      int damage = cluster.length * multiplier;
 
       final center = cluster[cluster.length ~/ 2];
       _eventController.add(ScoreEvent(points, center.row, center.col));
@@ -300,6 +450,20 @@ class GameProvider with ChangeNotifier {
          bombTarget = center;
       }
 
+      // Check adjacent obstacles
+      for (var tile in cluster) {
+         for (var dir in [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+            int nr = tile.row + dir[0];
+            int nc = tile.col + dir[1];
+            if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+               final neighbor = _grid[nr][nc];
+               if (neighbor.type == TileType.stone || neighbor.type == TileType.ice || neighbor.type == TileType.poison) {
+                  obstaclesToDamage.add(neighbor);
+               }
+            }
+         }
+      }
+
       for (var tile in cluster) {
          if (bombTarget != null && tile == bombTarget) {
             _grid[tile.row][tile.col] = Tile(
@@ -308,7 +472,7 @@ class GameProvider with ChangeNotifier {
               row: tile.row,
               col: tile.col,
             );
-            _eventController.add(BombEvent(tile.row, tile.col)); // Visual effect
+            _eventController.add(BombEvent(tile.row, tile.col));
          } else {
             _grid[tile.row][tile.col] = Tile(
               id: 'empty_${tile.row}_${tile.col}_${_random.nextInt(1000)}',
@@ -319,6 +483,24 @@ class GameProvider with ChangeNotifier {
          }
       }
     }
+
+    // Process Obstacle Damage
+    for (var obs in obstaclesToDamage) {
+       // Re-fetch in case it was modified? No, objects are ref.
+       // But grid position matters.
+
+       if (obs.type == TileType.stone) {
+          obs.hp--;
+          if (obs.hp <= 0) {
+             _grid[obs.row][obs.col] = Tile(id: 'broken_${obs.id}', type: TileType.empty, row: obs.row, col: obs.col);
+             _eventController.add(ScoreEvent(20, obs.row, obs.col));
+          }
+       } else if (obs.type == TileType.ice || obs.type == TileType.poison) {
+           _grid[obs.row][obs.col] = Tile(id: 'broken_${obs.id}', type: TileType.empty, row: obs.row, col: obs.col);
+           _eventController.add(ScoreEvent(30, obs.row, obs.col));
+       }
+    }
+
     notifyListeners();
   }
 
