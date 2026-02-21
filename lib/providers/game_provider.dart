@@ -156,23 +156,49 @@ class GameProvider with ChangeNotifier {
 
       final item = _rescueGrid[r][c];
       if (item.type == RescueType.pin) {
+          // Find all connected pins in this row
+          List<RescueItem> connectedPins = _findConnectedPins(r, c);
+
           if (_energy >= 10) {
               _energy -= 10;
-              _eventController.add(PinRemovedEvent(r, c));
 
-              // Delay removal slightly for animation? Or remove immediately and let UI animate?
-              // UI needs to know it WAS a pin to animate out.
-              // If I remove it now, UI sees empty.
-              // I'll emit event, UI plays animation, then after delay I remove it?
-              // No, logic should be instant. UI can handle "ghost" or overlay.
+              for (var pin in connectedPins) {
+                 _eventController.add(PinRemovedEvent(pin.row, pin.col));
+                 _rescueGrid[pin.row][pin.col] = RescueItem(
+                     id: 'empty_pin_${pin.row}_${pin.col}',
+                     type: RescueType.empty,
+                     row: pin.row,
+                     col: pin.col
+                 );
+              }
 
-              _rescueGrid[r][c] = RescueItem(id: 'empty_pin_${r}_$c', type: RescueType.empty, row: r, col: c);
               notifyListeners();
               _simulateRescuePhysics();
           } else {
-              _eventController.add(MessageEvent("Need 10 Energy!"));
+              _eventController.add(MessageEvent("Need 10 Energy to pull pin!"));
           }
       }
+  }
+
+  List<RescueItem> _findConnectedPins(int r, int originCol) {
+    List<RescueItem> connected = [];
+    // Search left
+    for (int c = originCol; c >= 0; c--) {
+      if (_rescueGrid[r][c].type == RescueType.pin) {
+        connected.add(_rescueGrid[r][c]);
+      } else {
+        break;
+      }
+    }
+    // Search right
+    for (int c = originCol + 1; c < _rescueGrid[0].length; c++) {
+      if (_rescueGrid[r][c].type == RescueType.pin) {
+        connected.add(_rescueGrid[r][c]);
+      } else {
+        break;
+      }
+    }
+    return connected;
   }
 
   Future<void> _simulateRescuePhysics() async {
