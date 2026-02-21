@@ -290,7 +290,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 ),
               ),
             ),
-            if (_overlayWidget != null) _overlayWidget!,
+            ?_overlayWidget,
           ],
         ),
     );
