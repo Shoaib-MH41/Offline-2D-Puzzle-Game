@@ -42,7 +42,8 @@ void main() {
     // Check number of tiles. Should be 63.
     expect(find.byType(TileWidget), findsNWidgets(63));
 
-    expect(find.byIcon(Icons.refresh), findsOneWidget);
-    expect(find.byIcon(Icons.save), findsOneWidget);
+    // Icons.refresh and Icons.save were removed in redesign
+    // expect(find.byIcon(Icons.refresh), findsOneWidget);
+    // expect(find.byIcon(Icons.save), findsOneWidget);
   });
 }
