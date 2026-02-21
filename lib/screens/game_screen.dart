@@ -37,7 +37,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   final List<dynamic> _effects = []; // Can be ScorePopupData or BlastEffectData
 
   late AnimationController _shakeController;
-  late Animation<Offset> _shakeAnimation;
 
   @override
   void initState() {
@@ -51,9 +50,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
        vsync: this,
        duration: const Duration(milliseconds: 400)
     );
-    _shakeAnimation = Tween<Offset>(begin: Offset.zero, end: const Offset(10, 0)).animate(
-        CurvedAnimation(parent: _shakeController, curve: Curves.elasticIn)
-    ); // elasticIn creates shake-like movement if we use sine wave manually or keyframes.
     // Simpler shake:
     _shakeController.addListener(() {
        setState(() {});
