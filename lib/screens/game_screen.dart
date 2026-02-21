@@ -5,7 +5,7 @@ import '../widgets/board_widget.dart';
 import '../services/storage_service.dart';
 
 class GameScreen extends StatefulWidget {
-  const GameScreen({Key? key}) : super(key: key);
+  const GameScreen({super.key});
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -26,7 +26,7 @@ class _GameScreenState extends State<GameScreen> {
 
     return PopScope(
       canPop: true,
-      onPopInvoked: (didPop) async {
+      onPopInvokedWithResult: (didPop, result) async {
          if (didPop) {
            final storage = context.read<StorageService>();
            await storage.saveHighScore(score);
@@ -47,7 +47,7 @@ class _GameScreenState extends State<GameScreen> {
               onPressed: () async {
                  final storage = context.read<StorageService>();
                  await storage.saveHighScore(score);
-                 if (mounted) {
+                 if (context.mounted) {
                    ScaffoldMessenger.of(context).showSnackBar(
                      const SnackBar(content: Text('Score Saved!')),
                    );
