@@ -5,7 +5,7 @@ import '../models/tile.dart';
 import 'tile_widget.dart';
 
 class BoardWidget extends StatelessWidget {
-  const BoardWidget({Key? key}) : super(key: key);
+  const BoardWidget({super.key});
 
   @override
   Widget build(BuildContext context) {
