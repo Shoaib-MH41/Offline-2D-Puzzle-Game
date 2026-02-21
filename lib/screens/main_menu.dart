@@ -4,7 +4,7 @@ import '../services/storage_service.dart';
 import 'game_screen.dart';
 
 class MainMenu extends StatefulWidget {
-  const MainMenu({Key? key}) : super(key: key);
+  const MainMenu({super.key});
 
   @override
   State<MainMenu> createState() => _MainMenuState();

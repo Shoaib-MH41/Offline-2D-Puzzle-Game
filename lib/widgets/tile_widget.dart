@@ -7,11 +7,11 @@ class TileWidget extends StatelessWidget {
   final VoidCallback onTap;
 
   const TileWidget({
-    Key? key,
+    super.key,
     required this.tile,
     required this.size,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -23,10 +23,10 @@ class TileWidget extends StatelessWidget {
         decoration: BoxDecoration(
           color: _getColor(tile.type),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
           boxShadow: [
              BoxShadow(
-               color: Colors.black.withOpacity(0.2),
+               color: Colors.black.withValues(alpha: 0.2),
                blurRadius: 4,
                offset: const Offset(2, 2),
              )
