@@ -30,10 +30,10 @@ class AdventureScene extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           // Hero
-                          _buildCharacter(Icons.person, "Hero", Colors.blueAccent),
+                          _buildCharacter("🧙‍♂️", "Hero", Colors.blueAccent),
 
                           // Monster
-                          _buildCharacter(Icons.bug_report, monster.name, Colors.redAccent, isMonster: true),
+                          _buildCharacter("👹", monster.name, Colors.redAccent, isMonster: true),
                         ],
                       ),
                     ),
@@ -76,22 +76,13 @@ class AdventureScene extends StatelessWidget {
     );
   }
 
-  Widget _buildCharacter(IconData icon, String label, Color color, {bool isMonster = false}) {
+  Widget _buildCharacter(String emoji, String label, Color color, {bool isMonster = false}) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
-            border: Border.all(color: color, width: 3),
-            boxShadow: [
-              BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 15, spreadRadius: 2)
-            ]
-          ),
-          child: Icon(icon, color: Colors.white, size: 40),
+        Text(
+          emoji,
+          style: const TextStyle(fontSize: 80),
         ),
         const SizedBox(height: 8),
         Container(

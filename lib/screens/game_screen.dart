@@ -159,138 +159,132 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     double shake = sin(_shakeController.value * pi * 4) * 8 * _shakeController.value;
+    final overlay = _overlayWidget;
 
     int worldIndex = (_gameProvider.level - 1) ~/ 10;
-    List<Color> bgColors;
+    Color bgColor;
     if (worldIndex == 0) {
-      bgColors = [Colors.green[900]!, Colors.green[700]!];
+      bgColor = Colors.green[900]!;
     } else if (worldIndex == 1) {
-      bgColors = [Colors.red[900]!, Colors.orange[900]!];
+      bgColor = Colors.red[900]!;
     } else if (worldIndex == 2) {
-      bgColors = [Colors.purple[900]!, Colors.deepPurple[800]!];
+      bgColor = Colors.purple[900]!;
     } else {
-      bgColors = [Colors.black, Colors.blueGrey[900]!];
+      bgColor = Colors.blueGrey[900]!;
     }
 
     return Scaffold(
+        backgroundColor: bgColor,
         body: Stack(
           children: [
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: bgColors,
-                )
-              ),
-              child: SafeArea(
-                child: Column(
-                  children: [
-                    // Top Bar
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.pause_circle_filled, color: Colors.white70, size: 32),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                          Column(
-                            children: [
-                               Text("Level ${_gameProvider.level}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                               Text("${_gameProvider.movesLeft} Moves", style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 20)),
-                            ],
-                          ),
-                          Column(
-                            children: [
-                               Text(_gameProvider.mode == GameMode.rescue ? "Energy" : "Score", style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                               Text(_gameProvider.mode == GameMode.rescue ? "${_gameProvider.energy}" : "${_gameProvider.score}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-                            ],
-                          )
-                        ],
-                      ),
-                    ),
-
-                    // Top Area: Adventure or Rescue
-                    Expanded(
-                      flex: 4,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Transform.translate(
-                          offset: Offset(shake, 0),
-                          child: _gameProvider.mode == GameMode.rescue
-                              ? const RescueScene()
-                              : const AdventureScene(),
+            SafeArea(
+              child: Column(
+                children: [
+                  // Top Bar
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: const Text("⏸️", style: TextStyle(fontSize: 24)),
+                          onPressed: () => Navigator.pop(context),
                         ),
+                        Column(
+                          children: [
+                             Text("Level ${_gameProvider.level}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                             Text("${_gameProvider.movesLeft} Moves", style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 20)),
+                          ],
+                        ),
+                        Column(
+                          children: [
+                             Text(_gameProvider.mode == GameMode.rescue ? "Energy" : "Score", style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                             Text(_gameProvider.mode == GameMode.rescue ? "${_gameProvider.energy}" : "${_gameProvider.score}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                          ],
+                        )
+                      ],
+                    ),
+                  ),
+
+                  // Top Area: Adventure or Rescue
+                  Expanded(
+                    flex: 4,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Transform.translate(
+                        offset: Offset(shake, 0),
+                        child: _gameProvider.mode == GameMode.rescue
+                            ? const RescueScene()
+                            : const AdventureScene(),
                       ),
                     ),
+                  ),
 
-                    // Bottom Area: Board
-                    Expanded(
-                      flex: 6,
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final double availableWidth = constraints.maxWidth - 16;
-                          final double availableHeight = constraints.maxHeight - 16;
+                  // Bottom Area: Board
+                  Expanded(
+                    flex: 6,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final double availableWidth = constraints.maxWidth - 16;
+                        final double availableHeight = constraints.maxHeight - 16;
 
-                          // Aspect ratio 7:9 (cols:rows)
-                          double boardWidth = availableWidth;
-                          double boardHeight = availableWidth * (GameProvider.rows / GameProvider.cols);
+                        // Aspect ratio 7:9 (cols:rows)
+                        double boardWidth = availableWidth;
+                        double boardHeight = availableWidth * (GameProvider.rows / GameProvider.cols);
 
-                          if (boardHeight > availableHeight) {
-                              boardHeight = availableHeight;
-                              boardWidth = boardHeight * (GameProvider.cols / GameProvider.rows);
-                          }
-
-                          final double tileSize = boardWidth / GameProvider.cols;
-                          final double offsetX = (constraints.maxWidth - boardWidth) / 2;
-                          final double offsetY = (constraints.maxHeight - boardHeight) / 2;
-
-                          return Stack(
-                            children: [
-                               Center(
-                                 child: Container(
-                                   width: boardWidth,
-                                   height: boardHeight,
-                                   decoration: BoxDecoration(
-                                     color: Colors.black45,
-                                     borderRadius: BorderRadius.circular(8),
-                                   ),
-                                   child: const BoardWidget(),
-                                 ),
-                               ),
-                               // Effects
-                               ..._effects.map((e) {
-                                 if (e is ScorePopupData) {
-                                   return Positioned(
-                                     left: offsetX + (e.col * tileSize),
-                                     top: offsetY + (e.row * tileSize),
-                                     width: tileSize,
-                                     height: tileSize,
-                                     child: ScorePopupWidget(data: e, onComplete: () => _removeEffect(e.id)),
-                                   );
-                                 } else if (e is BlastEffectData) {
-                                   return Positioned(
-                                     left: offsetX + ((e.col - 1) * tileSize),
-                                     top: offsetY + ((e.row - 1) * tileSize),
-                                     width: tileSize * 3,
-                                     height: tileSize * 3,
-                                     child: BlastEffectWidget(data: e, onComplete: () => _removeEffect(e.id)),
-                                   );
-                                 }
-                                 return const SizedBox.shrink();
-                               }),
-                            ],
-                          );
+                        if (boardHeight > availableHeight) {
+                            boardHeight = availableHeight;
+                            boardWidth = boardHeight * (GameProvider.cols / GameProvider.rows);
                         }
-                      ),
+
+                        final double tileSize = boardWidth / GameProvider.cols;
+                        final double offsetX = (constraints.maxWidth - boardWidth) / 2;
+                        final double offsetY = (constraints.maxHeight - boardHeight) / 2;
+
+                        return Stack(
+                          children: [
+                             Center(
+                               child: Container(
+                                 width: boardWidth,
+                                 height: boardHeight,
+                                 decoration: BoxDecoration(
+                                   color: Colors.black45,
+                                   borderRadius: BorderRadius.circular(8),
+                                 ),
+                                 child: const BoardWidget(),
+                               ),
+                             ),
+                             // Effects
+                             ..._effects.map((e) {
+                               if (e is ScorePopupData) {
+                                 return Positioned(
+                                   left: offsetX + (e.col * tileSize),
+                                   top: offsetY + (e.row * tileSize),
+                                   width: tileSize,
+                                   height: tileSize,
+                                   child: ScorePopupWidget(data: e, onComplete: () => _removeEffect(e.id)),
+                                 );
+                               } else if (e is BlastEffectData) {
+                                 return Positioned(
+                                   left: offsetX + ((e.col - 1) * tileSize),
+                                   top: offsetY + ((e.row - 1) * tileSize),
+                                   width: tileSize * 3,
+                                   height: tileSize * 3,
+                                   child: BlastEffectWidget(data: e, onComplete: () => _removeEffect(e.id)),
+                                 );
+                               }
+                               return const SizedBox.shrink();
+                             }),
+                          ],
+                        );
+                      }
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            ?_overlayWidget,
+            // ignore: use_null_aware_elements
+            if (overlay != null) overlay,
           ],
         ),
     );
@@ -351,15 +345,11 @@ class _WinLoseOverlayState extends State<WinLoseOverlay> with SingleTickerProvid
               color: Colors.grey[900],
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: widget.isWin ? Colors.amber : Colors.red, width: 3),
-              boxShadow: [
-                BoxShadow(color: widget.isWin ? Colors.amber.withValues(alpha: 0.3) : Colors.red.withValues(alpha: 0.3), blurRadius: 20, spreadRadius: 5)
-              ]
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(widget.isWin ? Icons.emoji_events : Icons.sentiment_very_dissatisfied,
-                  color: widget.isWin ? Colors.amber : Colors.redAccent, size: 80),
+                Text(widget.isWin ? "🏆" : "💀", style: const TextStyle(fontSize: 80)),
                 const SizedBox(height: 16),
                 Text(widget.title, style: TextStyle(color: widget.isWin ? Colors.amber : Colors.redAccent, fontSize: 32, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 16),
@@ -433,16 +423,8 @@ class _BlastEffectWidgetState extends State<BlastEffectWidget> with SingleTicker
       scale: _scale,
       child: FadeTransition(
         opacity: _opacity,
-        child: Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(
-              colors: [
-                Colors.orangeAccent.withValues(alpha: 0.8),
-                Colors.redAccent.withValues(alpha: 0.0),
-              ],
-            ),
-          ),
+        child: const Center(
+          child: Text("💥", style: TextStyle(fontSize: 60)),
         ),
       ),
     );
@@ -497,7 +479,7 @@ class _ScorePopupWidgetState extends State<ScorePopupWidget> with SingleTickerPr
               color: widget.data.score >= 50 ? Colors.purpleAccent : (widget.data.score >= 40 ? Colors.redAccent : Colors.amberAccent),
               fontSize: widget.data.score >= 40 ? 32 : 24,
               fontWeight: FontWeight.bold,
-              shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
+              decoration: TextDecoration.none,
             ),
           ),
         ),

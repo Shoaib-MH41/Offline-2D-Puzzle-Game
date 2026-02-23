@@ -62,13 +62,13 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
             if ((level - 1) % 10 == 0) {
                String worldName = "World ${worldIndex + 1}";
                if (worldIndex == 0) {
-                 worldName = "Goblin Forest";
+                 worldName = "Goblin Forest 🌲";
                } else if (worldIndex == 1) {
-                 worldName = "Fire Dungeon";
+                 worldName = "Fire Dungeon 🔥";
                } else if (worldIndex == 2) {
-                 worldName = "Snake Temple";
+                 worldName = "Snake Temple 🐍";
                } else {
-                 worldName = "Dark Castle";
+                 worldName = "Dark Castle 🏰";
                }
 
                header = Padding(
@@ -89,14 +89,13 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
                   children: [
                     CircleAvatar(
                       backgroundColor: isLocked ? Colors.grey : (isBoss ? Colors.red : (config.mode == GameMode.rescue ? Colors.blue : Colors.orange)),
-                      child: Icon(
-                        isLocked ? Icons.lock : (isBoss ? Icons.whatshot : (config.mode == GameMode.rescue ? Icons.person : Icons.colorize)),
-                        color: Colors.white,
-                        size: 20,
+                      child: Text(
+                        isLocked ? "🔒" : (isBoss ? "👹" : (config.mode == GameMode.rescue ? "🦸" : "⚔️")),
+                        style: const TextStyle(fontSize: 20),
                       ),
                     ),
                     if (level == _highestLevel && !isLocked)
-                       Transform.translate(offset: const Offset(12, 12), child: const Icon(Icons.star, color: Colors.yellow, size: 16)), // Hero marker?
+                       Transform.translate(offset: const Offset(12, 12), child: const Text("⭐", style: TextStyle(fontSize: 16))), // Hero marker?
                   ],
                 ),
                 title: Text(
@@ -109,17 +108,16 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
                     Text(config.mode == GameMode.rescue ? "Rescue Mode" : "Battle Mode"),
                     if (starCount > 0)
                       Row(
-                        children: List.generate(3, (i) => Icon(
-                           Icons.star,
-                           size: 14,
-                           color: i < starCount ? Colors.amber : Colors.grey
+                        children: List.generate(3, (i) => Text(
+                           i < starCount ? "⭐" : "⚫",
+                           style: const TextStyle(fontSize: 14),
                         )),
                       )
                   ],
                 ),
                 trailing: isLocked
-                   ? const Icon(Icons.lock, color: Colors.white54)
-                   : (level == _highestLevel ? const Icon(Icons.location_pin, color: Colors.redAccent) : const Icon(Icons.check_circle, color: Colors.green)),
+                   ? const Text("🔒", style: TextStyle(fontSize: 24, color: Colors.white54))
+                   : (level == _highestLevel ? const Text("📍", style: TextStyle(fontSize: 24, color: Colors.redAccent)) : const Text("✅", style: TextStyle(fontSize: 24, color: Colors.green))),
                 onTap: isLocked ? null : () => _playLevel(level),
               ),
             );
