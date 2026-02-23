@@ -28,82 +28,73 @@ class _MainMenuState extends State<MainMenu> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF141E30), Color(0xFF243B55)],
-          ),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Title
-              const Icon(Icons.extension, size: 80, color: Colors.white),
-              const SizedBox(height: 20),
-              const Text(
-                'PUZZLE\nQUEST',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 48,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  letterSpacing: 4,
-                  shadows: [Shadow(color: Colors.black54, blurRadius: 10, offset: Offset(2, 2))],
-                ),
+      backgroundColor: const Color(0xFF141E30),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Title
+            const Text("🧩", style: TextStyle(fontSize: 80)),
+            const SizedBox(height: 20),
+            const Text(
+              'PUZZLE\nQUEST',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 48,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                letterSpacing: 4,
               ),
-              const SizedBox(height: 40),
+            ),
+            const SizedBox(height: 40),
 
-              // High Score
-              FutureBuilder<int>(
-                future: _highScoreFuture,
-                builder: (context, snapshot) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white24),
-                    ),
-                    child: Text(
-                      'High Score: ${snapshot.data ?? 0}',
-                      style: const TextStyle(fontSize: 20, color: Colors.amberAccent, fontWeight: FontWeight.bold),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 60),
+            // High Score
+            FutureBuilder<int>(
+              future: _highScoreFuture,
+              builder: (context, snapshot) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Text(
+                    'High Score: ${snapshot.data ?? 0}',
+                    style: const TextStyle(fontSize: 20, color: Colors.amberAccent, fontWeight: FontWeight.bold),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 60),
 
-              // Play Button
-              _buildButton(
-                label: 'PLAY',
-                icon: Icons.play_arrow,
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const WorldMapScreen()),
-                  ).then((_) {
-                    _refreshHighScore();
-                  });
-                },
-              ),
-               const SizedBox(height: 20),
+            // Play Button
+            _buildButton(
+              label: 'PLAY',
+              emoji: "▶️",
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const WorldMapScreen()),
+                ).then((_) {
+                  _refreshHighScore();
+                });
+              },
+            ),
+             const SizedBox(height: 20),
 
-               // Settings Button
-              _buildButton(
-                label: 'SETTINGS',
-                icon: Icons.settings,
-                isSecondary: true,
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                     const SnackBar(content: Text('Settings coming soon!')),
-                   );
-                },
-              ),
-            ],
-          ),
+             // Settings Button
+            _buildButton(
+              label: 'SETTINGS',
+              emoji: "⚙️",
+              isSecondary: true,
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                   const SnackBar(content: Text('Settings coming soon!')),
+                 );
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -111,7 +102,7 @@ class _MainMenuState extends State<MainMenu> {
 
   Widget _buildButton({
     required String label,
-    required IconData icon,
+    required String emoji,
     required VoidCallback onPressed,
     bool isSecondary = false,
   }) {
@@ -125,12 +116,11 @@ class _MainMenuState extends State<MainMenu> {
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
           elevation: isSecondary ? 0 : 8,
-          shadowColor: Colors.orangeAccent.withValues(alpha: 0.5),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon),
+            Text(emoji, style: const TextStyle(fontSize: 24)),
             const SizedBox(width: 8),
             Text(label, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ],
